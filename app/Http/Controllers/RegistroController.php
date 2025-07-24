@@ -39,8 +39,8 @@ class RegistroController extends Controller
     {
         Registro::create($request->validated());
 
-        return Redirect::route('registros.index')
-            ->with('success', 'Registro created successfully.');
+        return Redirect::route('publicaciones.index') ->with('success', 'Registro creado correctamente.');
+
     }
 
     /**

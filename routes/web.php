@@ -5,7 +5,7 @@ use App\Http\Controllers\RegistroController;
 use App\Http\Controllers\ComentarioController;
 use App\Http\Controllers\PublicacioneController;
 Route::get('/', function () {
-    return view('welcome');
+    return redirect()->route('registros.index');
 });
 
 Route::resource('registros', RegistroController::class);
