@@ -8,15 +8,13 @@ Route::get('/', function () {
     return view('welcome');
 });
 
-// Rutas para registros
 Route::resource('registros', RegistroController::class);
 
-// Rutas para comentarios
 Route::resource('comentarios', ComentarioController::class);
 
-// Rutas para comentarios
 Route::resource('publicaciones', PublicacioneController::class);
 
+//Todo conectadito y funcionando
 
 // Auth::routes();
 
