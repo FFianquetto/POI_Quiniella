@@ -23,9 +23,9 @@
                         </div>
                     </div>
 
-                    @if ($message = Session::get('success'))
-                        <div class="alert alert-success m-4">
-                            <p>{{ $message }}</p>
+                    @if ($usuarioRegistrado)
+                        <div class="alert alert-info m-4">
+                            <p><strong>¡Bienvenido {{ $usuarioRegistrado }}!</strong> Ahora puedes crear publicacione!.</p>
                         </div>
                     @endif
 

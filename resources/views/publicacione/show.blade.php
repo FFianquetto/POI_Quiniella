@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @section('template_title')
-    {{ $publicacione->name ?? __('Show') . " " . __('Publicacione') }}
+    {{ $publicacione->titulo ?? __('Show') . " " . __('Publicacione') }}
 @endsection
 
 @section('content')
@@ -20,6 +20,22 @@
 
                     <div class="card-body bg-white">
                         
+                        <div class="form-group mb-2 mb20">
+                            <strong>Título:</strong>
+                            {{ $publicacione->titulo }}
+                        </div>
+                        <div class="form-group mb-2 mb20">
+                            <strong>Contenido:</strong>
+                            {{ $publicacione->contenido }}
+                        </div>
+                        <div class="form-group mb-2 mb20">
+                            <strong>Autor:</strong>
+                            {{ $publicacione->autor->nombre ?? 'Sin autor' }}
+                        </div>
+                        <div class="form-group mb-2 mb20">
+                            <strong>Fecha de creación:</strong>
+                            {{ $publicacione->created_at->format('d/m/Y H:i:s') }}
+                        </div>
 
                     </div>
                 </div>

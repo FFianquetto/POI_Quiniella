@@ -37,10 +37,11 @@ class RegistroController extends Controller
      */
     public function store(RegistroRequest $request): RedirectResponse
     {
-        Registro::create($request->validated());
+        $registro = Registro::create($request->validated());
 
-        return Redirect::route('publicaciones.index') ->with('success', 'Registro creado correctamente.');
-
+        return Redirect::route('publicaciones.index')
+            ->with('usuario_registrado', $registro->nombre)
+            ->with('registro_id', $registro->id);
     }
 
     /**
@@ -70,15 +71,13 @@ class RegistroController extends Controller
     {
         $registro->update($request->validated());
 
-        return Redirect::route('registros.index')
-            ->with('success', 'Registro updated successfully');
+        return Redirect::route('registros.index');
     }
 
     public function destroy($id): RedirectResponse
     {
         Registro::find($id)->delete();
 
-        return Redirect::route('registros.index')
-            ->with('success', 'Registro deleted successfully');
+        return Redirect::route('registros.index');
     }
 }

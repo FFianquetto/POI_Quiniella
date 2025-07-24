@@ -22,6 +22,10 @@ class PublicacioneRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'registro_id' => 'nullable|exists:registros,id',
+            'titulo' => 'required|string|max:255',
+            'contenido' => 'required|string',
+            'conversacion_id' => 'nullable|exists:conversaciones,id',
         ];
     }
 }

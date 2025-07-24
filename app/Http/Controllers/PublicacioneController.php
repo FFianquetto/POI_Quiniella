@@ -16,9 +16,13 @@ class PublicacioneController extends Controller
      */
     public function index(Request $request): View
     {
-        $publicaciones = Publicacione::paginate();
+        $publicaciones = Publicacione::with('autor')->paginate();
+        
+        // Obtener el nombre del usuario registrado desde la sesión
+        $usuarioRegistrado = session('usuario_registrado');
+        $registroId = session('registro_id');
 
-        return view('publicacione.index', compact('publicaciones'))
+        return view('publicacione.index', compact('publicaciones', 'usuarioRegistrado', 'registroId'))
             ->with('i', ($request->input('page', 1) - 1) * $publicaciones->perPage());
     }
 
@@ -28,8 +32,9 @@ class PublicacioneController extends Controller
     public function create(): View
     {
         $publicacione = new Publicacione();
+        $registroId = session('registro_id');
 
-        return view('publicacione.create', compact('publicacione'));
+        return view('publicacione.create', compact('publicacione', 'registroId'));
     }
 
     /**
@@ -37,10 +42,16 @@ class PublicacioneController extends Controller
      */
     public function store(PublicacioneRequest $request): RedirectResponse
     {
-        Publicacione::create($request->validated());
+        $data = $request->validated();
+        
+        // Si no se proporciona registro_id, usar el de la sesión
+        if (!isset($data['registro_id'])) {
+            $data['registro_id'] = session('registro_id');
+        }
+        
+        Publicacione::create($data);
 
-        return Redirect::route('publicaciones.index')
-            ->with('success', 'Publicacione created successfully.');
+        return Redirect::route('publicaciones.index');
     }
 
     /**
@@ -70,15 +81,13 @@ class PublicacioneController extends Controller
     {
         $publicacione->update($request->validated());
 
-        return Redirect::route('publicaciones.index')
-            ->with('success', 'Publicacione updated successfully');
+        return Redirect::route('publicaciones.index');
     }
 
     public function destroy($id): RedirectResponse
     {
         Publicacione::find($id)->delete();
 
-        return Redirect::route('publicaciones.index')
-            ->with('success', 'Publicacione deleted successfully');
+        return Redirect::route('publicaciones.index');
     }
 }
