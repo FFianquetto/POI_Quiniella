@@ -22,10 +22,21 @@ class ComentarioRequest extends FormRequest
     public function rules(): array
     {
         return [
-			'registro_id_emisor' => 'required',
-			'registro_id_receptor' => 'required',
-			'mensaje' => 'required|string',
-			'link' => 'required|string',
+            'mensaje' => 'required|string|max:1000',
+            'link' => 'nullable|string|max:255',
+        ];
+    }
+
+    /**
+     * Get custom messages for validator errors.
+     *
+     * @return array
+     */
+    public function messages(): array
+    {
+        return [
+            'mensaje.required' => 'El mensaje es obligatorio.',
+            'mensaje.max' => 'El mensaje no puede tener más de 1000 caracteres.',
         ];
     }
 }

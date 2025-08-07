@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @section('template_title')
-    Publicaciones
+    Servicios Publicados
 @endsection
 
 @section('content')
@@ -12,12 +12,12 @@
                     <div class="card-header">
                         <div style="display: flex; justify-content: space-between; align-items: center;">
                             <span id="card_title">
-                                {{ __('Publicaciones') }}
+                                {{ __('Servicios Disponibles') }}
                             </span>
 
                             <div class="float-right">
                                 <a href="{{ route('publicaciones.create') }}" class="btn btn-primary btn-sm float-right" data-placement="left">
-                                  {{ __('Create New') }}
+                                  {{ __('Publicar Servicio') }}
                                 </a>
                             </div>
                         </div>
@@ -25,7 +25,7 @@
 
                     @if ($usuarioRegistrado)
                         <div class="alert alert-info m-4">
-                            <p><strong>¡Bienvenido {{ $usuarioRegistrado }}!</strong> Ahora puedes crear publicacione!.</p>
+                            <p><strong>¡Bienvenido {{ $usuarioRegistrado }}!</strong> Puedes publicar tus servicios o contactar a otros usuarios.</p>
                         </div>
                     @endif
 
@@ -35,9 +35,10 @@
                                 <thead class="thead">
                                     <tr>
                                         <th>No</th>
-                                        <th>Título</th>
-                                        <th>Contenido</th>
-                                        <th>Autor</th>
+                                        <th>Servicio</th>
+                                        <th>Descripción</th>
+                                        <th>Publicado por</th>
+                                        <th>Contactar</th>
                                         <th>Fecha</th>
                                         <th>Acciones</th>
                                     </tr>
@@ -49,15 +50,24 @@
                                             <td>{{ $publicacione->titulo }}</td>
                                             <td>{{ Str::limit($publicacione->contenido, 50) }}</td>
                                             <td>{{ $publicacione->autor->nombre ?? 'Sin autor' }}</td>
+                                            <td>
+                                                @if($publicacione->autor)
+                                                    <a href="{{ route('comentarios.create', ['emisor_id' => session('registro_id'), 'receptor_id' => $publicacione->autor->id, 'publicacion_id' => $publicacione->id]) }}" class="btn btn-sm btn-info">
+                                                        <i class="fa fa-envelope"></i> Contactar
+                                                    </a>
+                                                @else
+                                                    <span class="text-muted">No disponible</span>
+                                                @endif
+                                            </td>
                                             <td>{{ $publicacione->created_at->format('d/m/Y') }}</td>
                                             <td>
-                                                <form action="{{ route('publicaciones.destroy', $publicacione->id) }}" method="POST">
-                                                    <a class="btn btn-sm btn-primary" href="{{ route('publicaciones.show', $publicacione->id) }}"><i class="fa fa-fw fa-eye"></i> {{ __('Show') }}</a>
-                                                    <a class="btn btn-sm btn-success" href="{{ route('publicaciones.edit', $publicacione->id) }}"><i class="fa fa-fw fa-edit"></i> {{ __('Edit') }}</a>
+                                                <form action="{{ route('publicaciones.destroy',$publicacione->id) }}" method="POST">
+                                                    <a class="btn btn-sm btn-primary" href="{{ route('publicaciones.show',$publicacione->id) }}"><i class="fa fa-fw fa-eye"></i> Ver</a>
+                                                    <a class="btn btn-sm btn-success" href="{{ route('publicaciones.edit',$publicacione->id) }}"><i class="fa fa-fw fa-edit"></i> Editar</a>
                                                     @csrf
                                                     @method('DELETE')
                                                     <button type="submit" class="btn btn-danger btn-sm" onclick="event.preventDefault(); confirm('¿Estás seguro de eliminar esta publicación?') ? this.closest('form').submit() : false;">
-                                                        <i class="fa fa-fw fa-trash"></i> {{ __('Delete') }}
+                                                        <i class="fa fa-fw fa-trash"></i> Eliminar
                                                     </button>
                                                 </form>
                                             </td>

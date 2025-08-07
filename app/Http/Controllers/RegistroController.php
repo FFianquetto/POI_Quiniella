@@ -39,9 +39,9 @@ class RegistroController extends Controller
     {
         $registro = Registro::create($request->validated());
 
-        return Redirect::route('publicaciones.index')
-            ->with('usuario_registrado', $registro->nombre)
-            ->with('registro_id', $registro->id);
+        // Redirigir al login con mensaje de éxito
+        return Redirect::route('auth.login')
+            ->with('success', '¡Registro exitoso! Ahora puedes iniciar sesión con tu correo y contraseña.');
     }
 
     /**

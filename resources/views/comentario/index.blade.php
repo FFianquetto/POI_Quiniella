@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @section('template_title')
-    Comentarios
+    Mis Mensajes
 @endsection
 
 @section('content')
@@ -11,66 +11,119 @@
                 <div class="card">
                     <div class="card-header">
                         <div style="display: flex; justify-content: space-between; align-items: center;">
-
                             <span id="card_title">
-                                {{ __('Comentarios') }}
+                                {{ __('Mis Mensajes') }}
                             </span>
 
-                             <div class="float-right">
-                                <a href="{{ route('comentarios.create') }}" class="btn btn-primary btn-sm float-right"  data-placement="left">
-                                  {{ __('Create New') }}
+                            <div class="float-right">
+                                <a href="{{ route('comentarios.create') }}" class="btn btn-primary btn-sm float-right" data-placement="left">
+                                  {{ __('Nuevo Mensaje') }}
                                 </a>
-                              </div>
+                            </div>
                         </div>
                     </div>
-                    @if ($message = Session::get('success'))
+                    
+                    @if(session('success'))
                         <div class="alert alert-success m-4">
-                            <p>{{ $message }}</p>
+                            <i class="fa fa-check-circle"></i> {{ session('success') }}
                         </div>
                     @endif
-
+                    
+                    @if(session('error'))
+                        <div class="alert alert-danger m-4">
+                            <i class="fa fa-exclamation-circle"></i> {{ session('error') }}
+                        </div>
+                    @endif
+                    
                     <div class="card-body bg-white">
-                        <div class="table-responsive">
-                            <table class="table table-striped table-hover">
-                                <thead class="thead">
-                                    <tr>
-                                        <th>No</th>
-                                        
-									<th >Registro Id Emisor</th>
-									<th >Registro Id Receptor</th>
-									<th >Mensaje</th>
-									<th >Link</th>
+                        <div class="row">
+                            <!-- Mensajes Recibidos -->
+                            <div class="col-md-6">
+                                <h5 class="text-primary mb-3">
+                                    <i class="fa fa-inbox"></i> Mensajes Recibidos ({{ $mensajesRecibidos->count() }})
+                                </h5>
+                                
+                                @if($mensajesRecibidos->count() > 0)
+                                    <div class="list-group">
+                                        @foreach($mensajesRecibidos as $mensaje)
+                                            <div class="list-group-item">
+                                                <div class="d-flex w-100 justify-content-between">
+                                                    <h6 class="mb-1">
+                                                        <i class="fa fa-user"></i> 
+                                                        {{ $mensaje->emisor->nombre }}
+                                                    </h6>
+                                                    <small class="text-muted">
+                                                        {{ $mensaje->created_at->format('d/m/Y H:i') }}
+                                                    </small>
+                                                </div>
+                                                <p class="mb-1">{{ $mensaje->mensaje }}</p>
+                                                @if($mensaje->link)
+                                                    <small><a href="{{ $mensaje->link }}" target="_blank">Link adjunto</a></small>
+                                                @endif
+                                                <div class="mt-2">
+                                                    <a href="{{ route('comentarios.create', ['emisor_id' => session('registro_id'), 'receptor_id' => $mensaje->emisor->id]) }}" class="btn btn-sm btn-outline-primary">
+                                                        <i class="fa fa-reply"></i> Contestar
+                                                    </a>
+                                                    <a href="{{ route('comentarios.conversacion', [session('registro_id'), $mensaje->emisor->id]) }}" class="btn btn-sm btn-outline-success">
+                                                        <i class="fa fa-comments"></i> Ver Chat
+                                                    </a>
+                                                    <a href="{{ route('comentarios.show', $mensaje->id) }}" class="btn btn-sm btn-outline-info">
+                                                        <i class="fa fa-eye"></i> Ver
+                                                    </a>
+                                                </div>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                @else
+                                    <div class="alert alert-info">
+                                        <i class="fa fa-info-circle"></i> No tienes mensajes recibidos.
+                                    </div>
+                                @endif
+                            </div>
 
-                                        <th></th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach ($comentarios as $comentario)
-                                        <tr>
-                                            <td>{{ ++$i }}</td>
-                                            
-										<td >{{ $comentario->registro_id_emisor }}</td>
-										<td >{{ $comentario->registro_id_receptor }}</td>
-										<td >{{ $comentario->mensaje }}</td>
-										<td >{{ $comentario->link }}</td>
-
-                                            <td>
-                                                <form action="{{ route('comentarios.destroy', $comentario->id) }}" method="POST">
-                                                    <a class="btn btn-sm btn-primary " href="{{ route('comentarios.show', $comentario->id) }}"><i class="fa fa-fw fa-eye"></i> {{ __('Show') }}</a>
-                                                    <a class="btn btn-sm btn-success" href="{{ route('comentarios.edit', $comentario->id) }}"><i class="fa fa-fw fa-edit"></i> {{ __('Edit') }}</a>
-                                                    @csrf
-                                                    @method('DELETE')
-                                                    <button type="submit" class="btn btn-danger btn-sm" onclick="event.preventDefault(); confirm('Are you sure to delete?') ? this.closest('form').submit() : false;"><i class="fa fa-fw fa-trash"></i> {{ __('Delete') }}</button>
-                                                </form>
-                                            </td>
-                                        </tr>
-                                    @endforeach
-                                </tbody>
-                            </table>
+                            <!-- Mensajes Enviados -->
+                            <div class="col-md-6">
+                                <h5 class="text-success mb-3">
+                                    <i class="fa fa-paper-plane"></i> Mensajes Enviados ({{ $mensajesEnviados->count() }})
+                                </h5>
+                                
+                                @if($mensajesEnviados->count() > 0)
+                                    <div class="list-group">
+                                        @foreach($mensajesEnviados as $mensaje)
+                                            <div class="list-group-item">
+                                                <div class="d-flex w-100 justify-content-between">
+                                                    <h6 class="mb-1">
+                                                        <i class="fa fa-user"></i> 
+                                                        Para: {{ $mensaje->receptor->nombre }}
+                                                    </h6>
+                                                    <small class="text-muted">
+                                                        {{ $mensaje->created_at->format('d/m/Y H:i') }}
+                                                    </small>
+                                                </div>
+                                                <p class="mb-1">{{ $mensaje->mensaje }}</p>
+                                                @if($mensaje->link)
+                                                    <small><a href="{{ $mensaje->link }}" target="_blank">Link adjunto</a></small>
+                                                @endif
+                                                <div class="mt-2">
+                                                    <a href="{{ route('comentarios.conversacion', [session('registro_id'), $mensaje->receptor->id]) }}" class="btn btn-sm btn-outline-success">
+                                                        <i class="fa fa-comments"></i> Ver Chat
+                                                    </a>
+                                                    <a href="{{ route('comentarios.show', $mensaje->id) }}" class="btn btn-sm btn-outline-info">
+                                                        <i class="fa fa-eye"></i> Ver
+                                                    </a>
+                                                </div>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                @else
+                                    <div class="alert alert-info">
+                                        <i class="fa fa-info-circle"></i> No has enviado mensajes.
+                                    </div>
+                                @endif
+                            </div>
                         </div>
                     </div>
                 </div>
-                {!! $comentarios->withQueryString()->links() !!}
             </div>
         </div>
     </div>

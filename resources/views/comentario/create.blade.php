@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @section('template_title')
-    {{ __('Create') }} Comentario
+    Enviar Mensaje
 @endsection
 
 @section('content')
@@ -11,11 +11,29 @@
 
                 <div class="card card-default">
                     <div class="card-header">
-                        <span class="card-title">{{ __('Create') }} Comentario</span>
+                        <span class="card-title">Enviar Mensaje</span>
                     </div>
                     <div class="card-body bg-white">
-                        <form method="POST" action="{{ route('comentarios.store') }}"  role="form" enctype="multipart/form-data">
+                        @if($emisor && $receptor)
+                            <div class="alert alert-info mb-3">
+                                <strong>De:</strong> {{ $emisor->nombre }} ({{ $emisor->correo }})
+                                <br><strong>Para:</strong> {{ $receptor->nombre }} ({{ $receptor->correo }})
+                                @if($publicacion)
+                                    <br><strong>Sobre el servicio:</strong> {{ $publicacion->titulo }}
+                                @endif
+                            </div>
+                        @endif
+                        
+                        <form method="POST" action="{{ route('comentarios.store') }}" role="form" enctype="multipart/form-data">
                             @csrf
+                            
+                            @if($emisor)
+                                <input type="hidden" name="emisor_id" value="{{ $emisor->id }}">
+                            @endif
+                            
+                            @if($receptor)
+                                <input type="hidden" name="receptor_id" value="{{ $receptor->id }}">
+                            @endif
 
                             @include('comentario.form')
 

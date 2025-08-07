@@ -18,6 +18,9 @@ use App\Models\Comentario;
  *
  * @property Comentario[] $comentariosEnviados
  * @property Comentario[] $comentariosRecibidos
+ * @property Quiniela[] $quinielasCreadas
+ * @property ParticipanteQuiniela[] $participaciones
+ * @property Prediccion[] $predicciones
  */
 class Registro extends Model
 {
@@ -26,18 +29,56 @@ class Registro extends Model
     protected $fillable = ['nombre', 'correo', 'contrasena', 'edad'];
 
     /**
-     * Comentarios enviados por este usuario (emisor)
+     * Chats en los que participa este usuario
      */
-    public function comentariosEnviados()
+    public function chats()
     {
-        return $this->hasMany(Comentario::class, 'registro_id_emisor', 'id');
+        return $this->belongsToMany(Chat::class, 'chat_usuario', 'registro_id', 'chat_id')
+                    ->withPivot('ultima_lectura')
+                    ->withTimestamps();
     }
 
     /**
-     * Comentarios recibidos por este usuario (receptor)
+     * Mensajes enviados por este usuario
      */
-    public function comentariosRecibidos()
+    public function mensajesEnviados()
     {
-        return $this->hasMany(Comentario::class, 'registro_id_receptor', 'id'); 
+        return $this->hasMany(Mensaje::class, 'registro_id_emisor');
+    }
+
+    /**
+     * Quinielas creadas por este usuario
+     */
+    public function quinielasCreadas()
+    {
+        return $this->hasMany(Quiniela::class, 'registro_id');
+    }
+
+    /**
+     * Participaciones en quinielas
+     */
+    public function participaciones()
+    {
+        return $this->hasMany(ParticipanteQuiniela::class, 'registro_id');
+    }
+
+    /**
+     * Predicciones realizadas
+     */
+    public function predicciones()
+    {
+        return $this->hasMany(Prediccion::class, 'registro_id');
+    }
+
+    /**
+     * Obtener quinielas activas donde participa
+     */
+    public function quinielasActivas()
+    {
+        return $this->participaciones()
+            ->whereHas('quiniela', function ($query) {
+                $query->where('estado', 'activa');
+            })
+            ->with('quiniela');
     }
 }

@@ -11,14 +11,9 @@ use Illuminate\View\View;
 
 class PublicacioneController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
     public function index(Request $request): View
     {
         $publicaciones = Publicacione::with('autor')->paginate();
-        
-        // Obtener el nombre del usuario registrado desde la sesión
         $usuarioRegistrado = session('usuario_registrado');
         $registroId = session('registro_id');
 
@@ -26,9 +21,6 @@ class PublicacioneController extends Controller
             ->with('i', ($request->input('page', 1) - 1) * $publicaciones->perPage());
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
     public function create(): View
     {
         $publicacione = new Publicacione();
@@ -37,16 +29,23 @@ class PublicacioneController extends Controller
         return view('publicacione.create', compact('publicacione', 'registroId'));
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(PublicacioneRequest $request): RedirectResponse
     {
         $data = $request->validated();
         
-        // Si no se proporciona registro_id, usar el de la sesión
-        if (!isset($data['registro_id'])) {
-            $data['registro_id'] = session('registro_id');
+        if (!isset($data['registro_id']) || empty($data['registro_id'])) {
+            $registroId = session('registro_id');
+            if (!$registroId) {
+                $primerRegistro = \App\Models\Registro::first();
+                if ($primerRegistro) {
+                    $data['registro_id'] = $primerRegistro->id;
+                } else {
+                    return Redirect::route('registros.create')
+                        ->with('error', 'Debes registrarte primero para crear publicaciones.');
+                }
+            } else {
+                $data['registro_id'] = $registroId;
+            }
         }
         
         Publicacione::create($data);
@@ -54,40 +53,27 @@ class PublicacioneController extends Controller
         return Redirect::route('publicaciones.index');
     }
 
-    /**
-     * Display the specified resource.
-     */
     public function show($id): View
     {
         $publicacione = Publicacione::find($id);
-
         return view('publicacione.show', compact('publicacione'));
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
     public function edit($id): View
     {
         $publicacione = Publicacione::find($id);
-
         return view('publicacione.edit', compact('publicacione'));
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
     public function update(PublicacioneRequest $request, Publicacione $publicacione): RedirectResponse
     {
         $publicacione->update($request->validated());
-
         return Redirect::route('publicaciones.index');
     }
 
     public function destroy($id): RedirectResponse
     {
         Publicacione::find($id)->delete();
-
         return Redirect::route('publicaciones.index');
     }
 }

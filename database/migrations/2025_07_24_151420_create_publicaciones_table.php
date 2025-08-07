@@ -16,13 +16,6 @@ return new class extends Migration
             $table->foreignId('registro_id')->constrained('registros')->onDelete('cascade');
             $table->string('titulo');
             $table->text('contenido');
-
-            // Relación opcional a una conversación iniciada con el autor
-            $table->foreignId('conversacion_id')
-                ->nullable()
-                ->constrained('conversaciones')
-                ->nullOnDelete(); // Si se borra la conversación, se pone null
-
             $table->timestamps();
         });
     }

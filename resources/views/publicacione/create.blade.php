@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @section('template_title')
-    {{ __('Create') }} Publicacione
+    Publicar Servicio
 @endsection
 
 @section('content')
@@ -11,7 +11,7 @@
 
                 <div class="card card-default">
                     <div class="card-header">
-                        <span class="card-title">{{ __('Create') }} Publicacione</span>
+                        <span class="card-title">Publicar Nuevo Servicio</span>
                     </div>
                     <div class="card-body bg-white">
                         <form method="POST" action="{{ route('publicaciones.store') }}"  role="form" enctype="multipart/form-data">
