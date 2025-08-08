@@ -92,7 +92,7 @@ class ChatController extends Controller
         $request->validate([
             'contenido' => 'required_without:archivo|string|max:1000',
             'tipo' => 'in:texto,imagen,video,audio,archivo',
-            'archivo' => 'nullable|file|max:' . (config('chat.max_file_size') / 1024 / 1024), // Convertir a MB
+            'archivo' => 'nullable|file|max:10240', // 10MB máximo
         ]);
 
         $usuarioId = session('registro_id');
@@ -106,6 +106,7 @@ class ChatController extends Controller
         }
 
         $mensajeData = [
+            'chat_id' => $chat->id,
             'registro_id_emisor' => $usuarioId,
             'contenido' => $request->contenido ?? '',
             'tipo' => $request->tipo ?? 'texto',
@@ -114,25 +115,37 @@ class ChatController extends Controller
         // Manejar archivo subido
         if ($request->hasFile('archivo')) {
             $archivo = $request->file('archivo');
-            $nombreArchivo = time() . '_' . $archivo->getClientOriginalName();
-            $ruta = $archivo->storeAs(config('chat.storage.path'), $nombreArchivo, config('chat.storage.disk'));
             
-            $mensajeData['archivo_url'] = Storage::url($ruta);
-            $mensajeData['archivo_nombre'] = $archivo->getClientOriginalName();
-            
-            // Determinar tipo basado en la extensión
+            // Validar tipo de archivo
             $extension = strtolower($archivo->getClientOriginalExtension());
             $allowedTypes = config('chat.allowed_file_types');
+            $tipoValido = false;
             
-            if (in_array($extension, $allowedTypes['imagen'])) {
-                $mensajeData['tipo'] = 'imagen';
-            } elseif (in_array($extension, $allowedTypes['video'])) {
-                $mensajeData['tipo'] = 'video';
-            } elseif (in_array($extension, $allowedTypes['audio'])) {
-                $mensajeData['tipo'] = 'audio';
-            } else {
-                $mensajeData['tipo'] = 'archivo';
+            foreach ($allowedTypes as $tipo => $extensiones) {
+                if (in_array($extension, $extensiones)) {
+                    $mensajeData['tipo'] = $tipo;
+                    $tipoValido = true;
+                    break;
+                }
             }
+            
+            if (!$tipoValido) {
+                return back()->with('error', 'Tipo de archivo no permitido: ' . $extension);
+            }
+            
+            // Generar nombre único para el archivo
+            $nombreArchivo = time() . '_' . uniqid() . '_' . $archivo->getClientOriginalName();
+            
+            // Guardar archivo
+            $rutaCompleta = $archivo->storeAs('chat_archivos', $nombreArchivo, 'public');
+            
+            if (!$rutaCompleta) {
+                return back()->with('error', 'Error al guardar el archivo.');
+            }
+            
+            // Generar URL pública para el archivo
+            $mensajeData['archivo_url'] = asset('storage/' . $rutaCompleta);
+            $mensajeData['archivo_nombre'] = $archivo->getClientOriginalName();
         }
 
         $mensaje = $chat->mensajes()->create($mensajeData);

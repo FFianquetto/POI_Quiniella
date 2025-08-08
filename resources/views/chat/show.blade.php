@@ -38,31 +38,50 @@
                                             </div>
                                         @elseif($mensaje->tipo === 'imagen')
                                             <div class="message-media">
-                                                <img src="{{ $mensaje->archivo_url }}" alt="{{ $mensaje->archivo_nombre }}" class="img-fluid rounded" style="max-width: 200px;">
-                                                <small class="d-block mt-1">{{ $mensaje->archivo_nombre }}</small>
+                                                @if($mensaje->archivo_url)
+                                                    <img src="{{ $mensaje->archivo_url }}" alt="{{ $mensaje->archivo_nombre }}" class="img-fluid rounded" style="max-width: 200px; max-height: 200px; object-fit: cover;">
+                                                    <small class="d-block mt-1">{{ $mensaje->archivo_nombre }}</small>
+                                                @else
+                                                    <div class="alert alert-warning">Imagen no disponible</div>
+                                                @endif
                                             </div>
                                         @elseif($mensaje->tipo === 'video')
                                             <div class="message-media">
-                                                <video controls class="img-fluid rounded" style="max-width: 300px;">
-                                                    <source src="{{ $mensaje->archivo_url }}" type="video/mp4">
-                                                    Tu navegador no soporta el elemento video.
-                                                </video>
-                                                <small class="d-block mt-1">{{ $mensaje->archivo_nombre }}</small>
+                                                @if($mensaje->archivo_url)
+                                                    <video controls class="img-fluid rounded" style="max-width: 300px;">
+                                                        <source src="{{ $mensaje->archivo_url }}" type="video/mp4">
+                                                        <source src="{{ $mensaje->archivo_url }}" type="video/webm">
+                                                        Tu navegador no soporta el elemento video.
+                                                    </video>
+                                                    <small class="d-block mt-1">{{ $mensaje->archivo_nombre }}</small>
+                                                @else
+                                                    <div class="alert alert-warning">Video no disponible</div>
+                                                @endif
                                             </div>
                                         @elseif($mensaje->tipo === 'audio')
                                             <div class="message-media">
-                                                <audio controls class="w-100">
-                                                    <source src="{{ $mensaje->archivo_url }}" type="audio/mpeg">
-                                                    Tu navegador no soporta el elemento audio.
-                                                </audio>
-                                                <small class="d-block mt-1">{{ $mensaje->archivo_nombre }}</small>
+                                                @if($mensaje->archivo_url)
+                                                    <audio controls class="w-100">
+                                                        <source src="{{ $mensaje->archivo_url }}" type="audio/mpeg">
+                                                        <source src="{{ $mensaje->archivo_url }}" type="audio/webm">
+                                                        <source src="{{ $mensaje->archivo_url }}" type="audio/ogg">
+                                                        Tu navegador no soporta el elemento audio.
+                                                    </audio>
+                                                    <small class="d-block mt-1">{{ $mensaje->archivo_nombre }}</small>
+                                                @else
+                                                    <div class="alert alert-warning">Audio no disponible</div>
+                                                @endif
                                             </div>
-                                        @else
+                                        @elseif($mensaje->tipo === 'archivo')
                                             <div class="message-file">
-                                                <i class="fa fa-file"></i>
-                                                <a href="{{ $mensaje->archivo_url }}" target="_blank" class="text-decoration-none">
-                                                    {{ $mensaje->archivo_nombre }}
-                                                </a>
+                                                @if($mensaje->archivo_url)
+                                                    <i class="fa fa-file"></i>
+                                                    <a href="{{ $mensaje->archivo_url }}" target="_blank" class="text-decoration-none">
+                                                        {{ $mensaje->archivo_nombre }}
+                                                    </a>
+                                                @else
+                                                    <div class="alert alert-warning">Archivo no disponible</div>
+                                                @endif
                                             </div>
                                         @endif
                                         <small class="message-time text-muted">
@@ -96,7 +115,7 @@
                                 <div class="input-group">
                                     <input type="text" name="contenido" class="form-control" placeholder="Escribe tu mensaje..." id="mensaje-texto">
                                     <input type="hidden" name="tipo" value="texto" id="mensaje-tipo">
-                                    <input type="file" name="archivo" id="archivo-input" class="d-none" accept="image/*,video/*,audio/*">
+                                    <input type="file" name="archivo" id="archivo-input" class="d-none" accept="image/*,video/*,audio/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.txt,.zip,.rar">
                                     
                                     <button type="button" class="btn btn-outline-secondary" id="btn-adjuntar" title="Adjuntar archivo">
                                         <i class="fa fa-paperclip"></i>
@@ -472,15 +491,22 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Determinar tipo basado en la extensión
             const extension = file.name.split('.').pop().toLowerCase();
-            if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(extension)) {
-                mensajeTipo.value = 'imagen';
-            } else if (['mp4', 'avi', 'mov', 'wmv', 'flv'].includes(extension)) {
-                mensajeTipo.value = 'video';
-            } else if (['mp3', 'wav', 'ogg', 'm4a'].includes(extension)) {
-                mensajeTipo.value = 'audio';
-            } else {
-                mensajeTipo.value = 'archivo';
+            const allowedTypes = {
+                'imagen': ['jpg', 'jpeg', 'png', 'gif', 'webp'],
+                'video': ['mp4', 'avi', 'mov', 'wmv', 'flv', 'webm'],
+                'audio': ['mp3', 'wav', 'ogg', 'm4a', 'webm'],
+                'archivo': ['pdf', 'doc', 'docx', 'txt', 'zip', 'rar']
+            };
+            
+            let tipoEncontrado = 'archivo';
+            for (const [tipo, extensiones] of Object.entries(allowedTypes)) {
+                if (extensiones.includes(extension)) {
+                    tipoEncontrado = tipo;
+                    break;
+                }
             }
+            
+            mensajeTipo.value = tipoEncontrado;
             
             // Mostrar nombre del archivo seleccionado
             const mensajeTexto = document.getElementById('mensaje-texto');
@@ -496,12 +522,14 @@ document.addEventListener('DOMContentLoaded', function() {
             audioChunks = [];
             
             mediaRecorder.ondataavailable = function(event) {
-                audioChunks.push(event.data);
+                if (event.data.size > 0) {
+                    audioChunks.push(event.data);
+                }
             };
             
             mediaRecorder.onstop = function() {
-                const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-                const audioFile = new File([audioBlob], 'audio_grabado_' + Date.now() + '.wav', { type: 'audio/wav' });
+                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                const audioFile = new File([audioBlob], 'audio_grabado_' + Date.now() + '.webm', { type: 'audio/webm' });
                 
                 // Crear un nuevo FileList
                 const dataTransfer = new DataTransfer();
@@ -572,12 +600,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     videoChunks = [];
                     
                     mediaRecorder.ondataavailable = function(event) {
-                        videoChunks.push(event.data);
+                        if (event.data.size > 0) {
+                            videoChunks.push(event.data);
+                        }
                     };
                     
                     mediaRecorder.onstop = function() {
-                        const videoBlob = new Blob(videoChunks, { type: 'video/mp4' });
-                        const videoFile = new File([videoBlob], 'video_grabado_' + Date.now() + '.mp4', { type: 'video/mp4' });
+                        const videoBlob = new Blob(videoChunks, { type: 'video/webm' });
+                        const videoFile = new File([videoBlob], 'video_grabado_' + Date.now() + '.webm', { type: 'video/webm' });
                         
                         const dataTransfer = new DataTransfer();
                         dataTransfer.items.add(videoFile);

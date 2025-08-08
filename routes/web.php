@@ -8,18 +8,25 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\EquipoController;
 use App\Http\Controllers\QuinielaController;
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\ComentarioController;
 
 Route::get('/', function () {
     return redirect()->route('auth.login');
 });
 
+// Rutas de autenticación
 Route::get('/login', [AuthController::class, 'showLogin'])->name('auth.login');
 Route::post('/login', [AuthController::class, 'login'])->name('auth.login.post');
 Route::post('/logout', [AuthController::class, 'logout'])->name('auth.logout');
 Route::get('/dashboard', [AuthController::class, 'dashboard'])->name('auth.dashboard');
 
+// Rutas de recursos
 Route::resource('registros', RegistroController::class);
 Route::resource('publicaciones', PublicacioneController::class);
+Route::resource('comentarios', ComentarioController::class);
+
+// Rutas adicionales para comentarios
+Route::get('/comentarios/conversacion/{usuario1}/{usuario2}', [ComentarioController::class, 'conversacion'])->name('comentarios.conversacion');
 
 // Rutas para equipos (solo ver información)
 Route::get('/equipos', [EquipoController::class, 'index'])->name('equipos.index');
