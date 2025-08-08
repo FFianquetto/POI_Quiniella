@@ -129,6 +129,10 @@
                                         <i class="fa fa-video-camera"></i>
                                     </button>
                                     
+                                    <button type="button" class="btn btn-outline-success" id="btn-videollamada" title="Iniciar videollamada">
+                                        <i class="fa fa-phone"></i>
+                                    </button>
+                                    
                                     <button type="submit" class="btn btn-primary">
                                         <i class="fa fa-paper-plane"></i> Enviar
                                     </button>
@@ -136,7 +140,6 @@
                             </div>
                         </div>
                         
-                        <!-- Controles de grabación -->
                         <div class="row mt-2" id="controles-grabacion" style="display: none;">
                             <div class="col-md-12">
                                 <div class="d-flex align-items-center">
@@ -157,7 +160,6 @@
     </div>
 </div>
 
-<!-- Modal para grabación de video -->
 <div class="modal fade" id="modalVideo" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
@@ -181,6 +183,53 @@
                 <button type="button" class="btn btn-danger" id="btn-detener-video" style="display: none;">
                     <i class="fa fa-stop me-1"></i>Detener
                 </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalVideollamada" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title">
+                    <i class="fa fa-phone me-2"></i>Videollamada
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" id="btn-cerrar-videollamada"></button>
+            </div>
+            <div class="modal-body p-0">
+                <div class="row g-0">
+                    <div class="col-md-8">
+                        <div class="position-relative" style="height: 400px; background: #000;">
+                            <video id="video-remoto" class="w-100 h-100" autoplay playsinline style="object-fit: cover;"></video>
+                            <div id="estado-videollamada" class="position-absolute top-50 start-50 translate-middle text-white text-center" style="display: none;">
+                                <i class="fa fa-spinner fa-spin fa-3x mb-3"></i>
+                                <h5>Conectando...</h5>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="position-relative" style="height: 200px; background: #000;">
+                            <video id="video-local" class="w-100 h-100" autoplay muted playsinline style="object-fit: cover;"></video>
+                        </div>
+                        <div class="p-3">
+                            <div class="d-flex justify-content-center gap-2 mb-3">
+                                <button type="button" class="btn btn-outline-light" id="btn-toggle-audio" title="Silenciar/Activar micrófono">
+                                    <i class="fa fa-microphone"></i>
+                                </button>
+                                <button type="button" class="btn btn-outline-light" id="btn-toggle-video" title="Activar/Desactivar cámara">
+                                    <i class="fa fa-video-camera"></i>
+                                </button>
+                                <button type="button" class="btn btn-danger" id="btn-colgar" title="Colgar">
+                                    <i class="fa fa-phone"></i>
+                                </button>
+                            </div>
+                            <div class="text-center">
+                                <small class="text-muted" id="tiempo-videollamada">00:00</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -473,7 +522,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const chatForm = document.getElementById('chat-form');
     const mensajeTipo = document.getElementById('mensaje-tipo');
 
-    // Adjuntar archivo
     btnAdjuntar.addEventListener('click', function() {
         archivoInput.click();
     });
@@ -482,14 +530,12 @@ document.addEventListener('DOMContentLoaded', function() {
         if (this.files.length > 0) {
             const file = this.files[0];
             
-            // Verificar tamaño del archivo (10MB máximo)
             if (file.size > 10 * 1024 * 1024) {
                 alert('El archivo es demasiado grande. Máximo 10MB.');
                 this.value = '';
                 return;
             }
             
-            // Determinar tipo basado en la extensión
             const extension = file.name.split('.').pop().toLowerCase();
             const allowedTypes = {
                 'imagen': ['jpg', 'jpeg', 'png', 'gif', 'webp'],
@@ -508,13 +554,11 @@ document.addEventListener('DOMContentLoaded', function() {
             
             mensajeTipo.value = tipoEncontrado;
             
-            // Mostrar nombre del archivo seleccionado
             const mensajeTexto = document.getElementById('mensaje-texto');
             mensajeTexto.value = `📎 ${file.name}`;
         }
     });
 
-    // Grabación de audio
     btnAudio.addEventListener('click', async function() {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -531,7 +575,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
                 const audioFile = new File([audioBlob], 'audio_grabado_' + Date.now() + '.webm', { type: 'audio/webm' });
                 
-                // Crear un nuevo FileList
                 const dataTransfer = new DataTransfer();
                 dataTransfer.items.add(audioFile);
                 archivoInput.files = dataTransfer.files;
@@ -540,11 +583,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 controlesGrabacion.style.display = 'none';
                 clearInterval(recordingInterval);
                 
-                // Mostrar mensaje de éxito
                 const mensajeTexto = document.getElementById('mensaje-texto');
                 mensajeTexto.value = '🎤 Audio grabado';
                 
-                // Efecto visual
                 btnAudio.classList.add('btn-success');
                 setTimeout(() => btnAudio.classList.remove('btn-success'), 2000);
             };
@@ -561,10 +602,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 const seconds = elapsed % 60;
                 tiempoGrabacion.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
                 
-                const progress = Math.min((elapsed / 300) * 100, 100); // Máximo 5 minutos
+                const progress = Math.min((elapsed / 300) * 100, 100);
                 progressGrabacion.style.width = progress + '%';
                 
-                // Detener automáticamente después de 5 minutos
                 if (elapsed >= 300) {
                     btnDetenerGrabacion.click();
                 }
@@ -575,7 +615,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Detener grabación
     btnDetenerGrabacion.addEventListener('click', function() {
         if (mediaRecorder && mediaRecorder.state === 'recording') {
             mediaRecorder.stop();
@@ -585,7 +624,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Grabación de video
     btnVideo.addEventListener('click', function() {
         const modal = new bootstrap.Modal(document.getElementById('modalVideo'));
         modal.show();
@@ -616,11 +654,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         mensajeTipo.value = 'video';
                         modal.hide();
                         
-                        // Mostrar mensaje de éxito
                         const mensajeTexto = document.getElementById('mensaje-texto');
                         mensajeTexto.value = '🎥 Video grabado';
                         
-                        // Efecto visual
                         btnVideo.classList.add('btn-success');
                         setTimeout(() => btnVideo.classList.remove('btn-success'), 2000);
                     };
@@ -643,11 +679,9 @@ document.addEventListener('DOMContentLoaded', function() {
             });
     });
 
-    // Auto-scroll al final del chat
     const chatMessages = document.getElementById('chat-messages');
     chatMessages.scrollTop = chatMessages.scrollHeight;
     
-    // Scroll automático cuando se envían nuevos mensajes
     const observer = new MutationObserver(function() {
         chatMessages.scrollTop = chatMessages.scrollHeight;
     });
@@ -657,7 +691,6 @@ document.addEventListener('DOMContentLoaded', function() {
         subtree: true
     });
     
-    // Efecto de typing
     const mensajeTexto = document.getElementById('mensaje-texto');
     mensajeTexto.addEventListener('input', function() {
         if (this.value.length > 0) {
@@ -666,6 +699,52 @@ document.addEventListener('DOMContentLoaded', function() {
             this.style.borderColor = '';
         }
     });
+
+    let videoCall;
+    
+    function initializeVideoCall() {
+        try {
+            const btnVideollamada = document.getElementById('btn-videollamada');
+            const modalVideollamada = document.getElementById('modalVideollamada');
+            
+            if (!btnVideollamada || !modalVideollamada) {
+                return;
+            }
+            
+            if (typeof VideoCall === 'undefined') {
+                return;
+            }
+            
+            videoCall = new VideoCall({{ $chat->id }}, {{ $usuario->id ?? 'null' }});
+            
+        } catch (error) {
+            return;
+        }
+    }
+    
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function() {
+            loadVideoCallScript();
+        });
+    } else {
+        loadVideoCallScript();
+    }
+    
+    function loadVideoCallScript() {
+        if (typeof VideoCall === 'undefined') {
+            const script = document.createElement('script');
+            script.src = '/js/videollamada.js';
+            script.onload = function() {
+                setTimeout(initializeVideoCall, 100);
+            };
+            script.onerror = function() {
+                return;
+            };
+            document.head.appendChild(script);
+        } else {
+            initializeVideoCall();
+        }
+    }
 });
 </script>
 @endsection

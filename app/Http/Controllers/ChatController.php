@@ -164,10 +164,68 @@ class ChatController extends Controller
             return redirect()->route('auth.login');
         }
 
+        $usuario = Registro::find($usuarioId);
         $usuarios = Registro::where('id', '!=', $usuarioId)
-            ->orderBy('nombre')
-            ->get();
+            ->where('nombre', 'like', '%' . request('q', '') . '%')
+            ->paginate(10);
 
-        return view('chat.buscar', compact('usuarios'));
+        return view('chat.buscar', compact('usuarios', 'usuario'));
+    }
+
+    /**
+     * Iniciar videollamada
+     */
+    public function iniciarVideollamada(Request $request, Chat $chat): \Illuminate\Http\JsonResponse
+    {
+        $usuarioId = session('registro_id');
+        
+        if (!$usuarioId) {
+            return response()->json(['error' => 'No autorizado'], 401);
+        }
+
+        if (!$chat->tieneUsuario($usuarioId)) {
+            return response()->json(['error' => 'No tienes acceso a este chat'], 403);
+        }
+
+        // Generar ID único para la videollamada
+        $callId = uniqid('call_', true);
+        
+        // En una implementación real, aquí guardarías la información de la videollamada
+        // y notificarías al otro usuario a través de WebSockets
+        
+        return response()->json([
+            'success' => true,
+            'call_id' => $callId,
+            'chat_id' => $chat->id
+        ]);
+    }
+
+    /**
+     * Manejar señalización WebRTC
+     */
+    public function señalizacion(Request $request, Chat $chat): \Illuminate\Http\JsonResponse
+    {
+        $usuarioId = session('registro_id');
+        
+        if (!$usuarioId) {
+            return response()->json(['error' => 'No autorizado'], 401);
+        }
+
+        if (!$chat->tieneUsuario($usuarioId)) {
+            return response()->json(['error' => 'No tienes acceso a este chat'], 403);
+        }
+
+        $request->validate([
+            'tipo' => 'required|in:offer,answer,ice-candidate',
+            'datos' => 'required|array'
+        ]);
+
+        // En una implementación real, aquí procesarías la señalización
+        // y la enviarías al otro usuario a través de WebSockets
+        
+        return response()->json([
+            'success' => true,
+            'mensaje' => 'Señalización procesada'
+        ]);
     }
 }

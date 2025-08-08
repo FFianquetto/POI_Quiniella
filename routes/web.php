@@ -52,3 +52,7 @@ Route::get('/chats/buscar', [ChatController::class, 'buscarUsuarios'])->name('ch
 Route::get('/chats/{chat}', [ChatController::class, 'show'])->name('chats.show');
 Route::post('/chats/crear', [ChatController::class, 'crearChat'])->name('chats.crear');
 Route::post('/chats/{chat}/mensaje', [ChatController::class, 'enviarMensaje'])->name('chats.mensaje');
+
+// Rutas para videollamadas
+Route::post('/chats/{chat}/videollamada/iniciar', [ChatController::class, 'iniciarVideollamada'])->name('chats.videollamada.iniciar');
+Route::post('/chats/{chat}/videollamada/señalizacion', [ChatController::class, 'señalizacion'])->name('chats.videollamada.señalizacion');
