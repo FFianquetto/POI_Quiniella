@@ -9,3 +9,1086 @@
     --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
 }
+
+/* ===== ESTÉTICA FUTBOLERA - COLORES INFFUT ===== */
+
+:root {
+    /* Colores principales de Infutt */
+    --primary-green: #2E7D32;
+    --secondary-green: #4CAF50;
+    --accent-green: #81C784;
+    --field-green: #4A6741;
+    --grass-green: #66BB6A;
+    --white: #FFFFFF;
+    --black: #1A1A1A;
+    --dark-black: #000000;
+    --orange: #FF6B35;
+    --orange-light: #FF8A65;
+    --orange-dark: #E64A19;
+    --red: #F44336;
+    
+    /* Gradientes con colores Infutt */
+    --gradient-primary: linear-gradient(135deg, var(--primary-green) 0%, var(--secondary-green) 100%);
+    --gradient-field: linear-gradient(135deg, var(--field-green) 0%, var(--grass-green) 100%);
+    --gradient-card: linear-gradient(135deg, var(--white) 0%, #F8F9FA 100%);
+    --gradient-navbar: linear-gradient(90deg, var(--black) 0%, var(--dark-black) 100%);
+    --gradient-orange: linear-gradient(135deg, var(--orange) 0%, var(--orange-light) 100%);
+    
+    /* Sombras */
+    --shadow-sm: 0 2px 4px rgba(0,0,0,0.1);
+    --shadow-md: 0 4px 8px rgba(0,0,0,0.15);
+    --shadow-lg: 0 8px 16px rgba(0,0,0,0.2);
+    --shadow-green: 0 4px 12px rgba(46, 125, 50, 0.3);
+    --shadow-orange: 0 4px 12px rgba(255, 107, 53, 0.3);
+}
+
+/* ===== ESTILOS GLOBALES ===== */
+body {
+    background: linear-gradient(135deg, #F0F8F0 0%, #E8F5E8 100%) !important;
+    font-family: 'Nunito', sans-serif !important;
+    color: var(--black) !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    min-height: 100vh !important;
+}
+
+/* ===== NAVBAR FUTBOLERO ===== */
+.navbar.navbar-expand-md.navbar-light.shadow-sm {
+    background: var(--gradient-navbar) !important;
+    box-shadow: var(--shadow-lg) !important;
+    border: none !important;
+}
+
+.navbar-brand {
+    color: var(--white) !important;
+    font-weight: 800 !important;
+    font-size: 1.5rem !important;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.3) !important;
+}
+
+/* Balón de fútbol removido del navbar-brand */
+
+.navbar-nav .nav-link {
+    color: var(--white) !important;
+    font-weight: 600 !important;
+    transition: none !important;
+    border-radius: 25px !important;
+    margin: 0 5px !important;
+    padding: 8px 16px !important;
+    background: transparent !important;
+    position: relative !important;
+    overflow: hidden !important;
+}
+
+/* ELIMINAR COMPLETAMENTE EL HOVER PROBLEMÁTICO */
+.navbar-nav .nav-link:hover,
+.navbar-nav .nav-link:focus,
+.navbar-nav .nav-link:active,
+.navbar-nav .nav-link.active {
+    background: transparent !important;
+    transform: none !important;
+    box-shadow: none !important;
+    color: var(--white) !important;
+    text-decoration: none !important;
+}
+
+/* ELIMINAR CUALQUIER PSEUDOELEMENTO QUE PUEDA CAUSAR PROBLEMAS */
+.navbar-nav .nav-link::before,
+.navbar-nav .nav-link::after {
+    display: none !important;
+    content: none !important;
+}
+
+.navbar-nav .nav-link:hover::before,
+.navbar-nav .nav-link:hover::after,
+.navbar-nav .nav-link:focus::before,
+.navbar-nav .nav-link:focus::after,
+.navbar-nav .nav-link:active::before,
+.navbar-nav .nav-link:active::after {
+    display: none !important;
+    content: none !important;
+}
+
+/* ELIMINAR CUALQUIER TRANSFORMACIÓN O EFECTO */
+.navbar-nav .nav-link:hover,
+.navbar-nav .nav-link:focus,
+.navbar-nav .nav-link:active {
+    transform: none !important;
+    scale: 1 !important;
+    filter: none !important;
+    backdrop-filter: none !important;
+    -webkit-transform: none !important;
+    -moz-transform: none !important;
+    -ms-transform: none !important;
+}
+
+.navbar-toggler {
+    border: 2px solid var(--white) !important;
+    border-radius: 10px !important;
+}
+
+.navbar-toggler:focus {
+    box-shadow: 0 0 0 0.2rem rgba(255,255,255,0.5) !important;
+}
+
+/* Asegurar que el contenido principal no interfiera */
+.container, .row, .col, .card, .card-body {
+    position: relative !important;
+    z-index: 1 !important;
+}
+
+/* Asegurar que el contenido de la página esté por debajo */
+main, .main-content, .content-wrapper {
+    position: relative !important;
+    z-index: 1 !important;
+}
+
+/* Asegurar que el navbar tenga z-index alto */
+.navbar {
+    position: relative !important;
+    z-index: 10000 !important;
+}
+
+.navbar-nav {
+    position: relative !important;
+    z-index: 10000 !important;
+}
+
+/* ===== CARDS FUTBOLERAS ===== */
+.card {
+    background: var(--gradient-card) !important;
+    border: none !important;
+    border-radius: 20px !important;
+    box-shadow: var(--shadow-md) !important;
+    transition: none !important;
+    overflow: hidden !important;
+}
+
+.card:hover {
+    transform: none !important;
+    box-shadow: var(--shadow-md) !important;
+}
+
+.card-header {
+    background: var(--gradient-primary) !important;
+    color: var(--white) !important;
+    border: none !important;
+    border-radius: 20px 20px 0 0 !important;
+    padding: 20px 25px !important;
+    font-weight: 700 !important;
+    font-size: 1.2rem !important;
+}
+
+.card-header::before {
+    content: "🏆" !important;
+    margin-right: 10px !important;
+}
+
+/* ===== TABLAS MEJORADAS ===== */
+.table {
+    margin-bottom: 0 !important;
+}
+
+.table thead th {
+    background: linear-gradient(135deg, var(--field-green) 0%, var(--primary-green) 100%) !important;
+    color: var(--white) !important;
+    border: none !important;
+    padding: 15px 12px !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    font-size: 0.9rem !important;
+    letter-spacing: 0.5px !important;
+}
+
+.table tbody tr {
+    transition: none !important;
+}
+
+.table tbody tr:hover {
+    background: none !important;
+    transform: none !important;
+}
+
+.table tbody td {
+    padding: 15px 12px !important;
+    border: none !important;
+    border-bottom: 1px solid rgba(0,0,0,0.05) !important;
+    vertical-align: middle !important;
+}
+
+/* ===== BADGES FUTBOLEROS ===== */
+.badge {
+    padding: 8px 12px !important;
+    border-radius: 20px !important;
+    font-weight: 600 !important;
+    font-size: 0.8rem !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
+}
+
+.badge.bg-success {
+    background: var(--gradient-primary) !important;
+    box-shadow: var(--shadow-green) !important;
+}
+
+.badge.bg-warning {
+    background: var(--gradient-orange) !important;
+    color: var(--white) !important;
+}
+
+.badge.bg-secondary {
+    background: linear-gradient(135deg, #757575 0%, #9E9E9E 100%) !important;
+    color: var(--white) !important;
+}
+
+.badge.bg-info {
+    background: var(--gradient-orange) !important;
+    color: var(--white) !important;
+}
+
+.badge.bg-primary {
+    background: var(--gradient-orange) !important;
+    color: var(--white) !important;
+}
+
+/* ===== BOTONES FUTBOLEROS ===== */
+.btn {
+    border-radius: 25px !important;
+    font-weight: 600 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
+    padding: 10px 20px !important;
+    transition: none !important;
+    border: none !important;
+    position: relative !important;
+    overflow: hidden !important;
+}
+
+.btn::before {
+    display: none !important;
+}
+
+.btn:hover::before {
+    display: none !important;
+}
+
+.btn-primary {
+    background: var(--gradient-primary) !important;
+    color: var(--white) !important;
+    box-shadow: var(--shadow-green) !important;
+}
+
+.btn-primary:hover {
+    transform: none !important;
+    box-shadow: var(--shadow-green) !important;
+}
+
+.btn-outline-primary {
+    background: transparent !important;
+    color: var(--primary-green) !important;
+    border: 2px solid var(--primary-green) !important;
+}
+
+.btn-outline-primary:hover {
+    background: var(--gradient-primary) !important;
+    color: var(--white) !important;
+    transform: none !important;
+    box-shadow: var(--shadow-green) !important;
+}
+
+.btn-outline-success {
+    background: transparent !important;
+    color: var(--orange) !important;
+    border: 2px solid var(--orange) !important;
+}
+
+.btn-outline-success:hover {
+    background: var(--gradient-orange) !important;
+    color: var(--white) !important;
+    transform: none !important;
+    box-shadow: var(--shadow-orange) !important;
+}
+
+.btn-sm {
+    padding: 8px 16px !important;
+    font-size: 0.8rem !important;
+}
+
+/* ===== ALERTAS MEJORADAS ===== */
+.alert {
+    border: none !important;
+    border-radius: 15px !important;
+    padding: 15px 20px !important;
+    font-weight: 600 !important;
+    box-shadow: var(--shadow-sm) !important;
+}
+
+.alert-success {
+    background: linear-gradient(135deg, #E8F5E8 0%, #C8E6C9 100%) !important;
+    color: var(--primary-green) !important;
+    border-left: 5px solid var(--primary-green) !important;
+}
+
+/* ===== CAMPOS DE FORMULARIO FUNCIONALES ===== */
+.form-control {
+    background-color: #fff !important;
+    border: 1px solid #ced4da !important;
+    border-radius: 0.375rem !important;
+    color: #212529 !important;
+    font-size: 1rem !important;
+    line-height: 1.5 !important;
+    padding: 0.375rem 0.75rem !important;
+    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+    appearance: none !important;
+    pointer-events: auto !important;
+    user-select: auto !important;
+}
+
+.form-control:focus {
+    background-color: #fff !important;
+    border-color: var(--primary-green) !important;
+    outline: 0 !important;
+    box-shadow: 0 0 0 0.2rem rgba(46, 125, 50, 0.25) !important;
+    color: #212529 !important;
+}
+
+.form-control:disabled,
+.form-control[readonly] {
+    background-color: #e9ecef !important;
+    opacity: 1 !important;
+}
+
+.form-control::placeholder {
+    color: #6c757d !important;
+    opacity: 1 !important;
+}
+
+/* Asegurar que los campos de contraseña funcionen */
+input[type="password"] {
+    -webkit-text-security: none !important;
+    text-security: none !important;
+}
+
+input[type="email"],
+input[type="password"],
+input[type="text"],
+input[type="number"],
+input[type="tel"],
+input[type="url"],
+input[type="search"] {
+    pointer-events: auto !important;
+    user-select: auto !important;
+    -webkit-user-select: auto !important;
+    -moz-user-select: auto !important;
+    -ms-user-select: auto !important;
+    background-color: #fff !important;
+    color: #212529 !important;
+}
+
+/* Quitar cualquier transformación que pueda interferir */
+.form-control:hover,
+.form-control:active {
+    transform: none !important;
+}
+
+/* Asegurar que los labels sean visibles */
+.col-form-label,
+label {
+    color: #212529 !important;
+    font-weight: 500 !important;
+    display: block !important;
+    margin-bottom: 0.5rem !important;
+}
+
+/* Botones de formulario */
+.btn-primary {
+    background: var(--gradient-primary) !important;
+    color: var(--white) !important;
+    border: none !important;
+    box-shadow: var(--shadow-green) !important;
+}
+
+.btn-primary:hover {
+    transform: none !important;
+    box-shadow: var(--shadow-lg) !important;
+}
+
+/* ===== FORZAR INPUTS FUNCIONALES - ESTILOS AGRESIVOS ===== */
+/* Sobrescribir cualquier CSS que pueda estar bloqueando los inputs */
+input,
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+input[type="tel"],
+input[type="url"],
+input[type="search"],
+textarea,
+select {
+    pointer-events: auto !important;
+    user-select: auto !important;
+    -webkit-user-select: auto !important;
+    -moz-user-select: auto !important;
+    -ms-user-select: auto !important;
+    background-color: #fff !important;
+    color: #212529 !important;
+    border: 1px solid #ced4da !important;
+    border-radius: 0.375rem !important;
+    padding: 0.375rem 0.75rem !important;
+    font-size: 1rem !important;
+    line-height: 1.5 !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+    appearance: none !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    display: block !important;
+    position: relative !important;
+    z-index: 1 !important;
+}
+
+/* Forzar que los inputs sean editables */
+input:not([disabled]):not([readonly]),
+textarea:not([disabled]):not([readonly]),
+select:not([disabled]):not([readonly]) {
+    pointer-events: auto !important;
+    user-select: auto !important;
+    -webkit-user-select: auto !important;
+    -moz-user-select: auto !important;
+    -ms-user-select: auto !important;
+    cursor: text !important;
+}
+
+/* Asegurar que los inputs tengan el cursor correcto */
+input[type="text"]:hover,
+input[type="email"]:hover,
+input[type="password"]:hover,
+input[type="number"]:hover,
+input[type="tel"]:hover,
+input[type="url"]:hover,
+input[type="search"]:hover,
+textarea:hover {
+    cursor: text !important;
+}
+
+/* Quitar cualquier transformación o filtro que pueda interferir */
+input,
+textarea,
+select {
+    transform: none !important;
+    filter: none !important;
+    backdrop-filter: none !important;
+    -webkit-transform: none !important;
+    -moz-transform: none !important;
+    -ms-transform: none !important;
+}
+
+/* Asegurar que los inputs sean visibles y funcionales */
+.form-control,
+.form-control:focus,
+.form-control:hover,
+.form-control:active {
+    pointer-events: auto !important;
+    user-select: auto !important;
+    -webkit-user-select: auto !important;
+    -moz-user-select: auto !important;
+    -ms-user-select: auto !important;
+    cursor: text !important;
+    background-color: #fff !important;
+    color: #212529 !important;
+}
+
+/* ===== PAGINACIÓN FUTBOLERA ===== */
+.pagination {
+    justify-content: center !important;
+    margin-top: 30px !important;
+}
+
+.page-link {
+    border: none !important;
+    margin: 0 5px !important;
+    border-radius: 15px !important;
+    color: var(--primary-green) !important;
+    font-weight: 600 !important;
+    transition: all 0.3s ease !important;
+}
+
+.page-link:hover {
+    background: var(--gradient-primary) !important;
+    color: var(--white) !important;
+    transform: translateY(-2px) !important;
+    box-shadow: var(--shadow-green) !important;
+}
+
+.page-item.active .page-link {
+    background: var(--gradient-primary) !important;
+    border-color: var(--primary-green) !important;
+    box-shadow: var(--shadow-green) !important;
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 768px) {
+    .card-header {
+        padding: 15px 20px !important;
+        font-size: 1rem !important;
+    }
+    
+    .table thead th,
+    .table tbody td {
+        padding: 10px 8px !important;
+        font-size: 0.85rem !important;
+    }
+    
+    .btn {
+        padding: 8px 16px !important;
+        font-size: 0.8rem !important;
+    }
+}
+
+/* ===== ANIMACIONES ===== */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.card {
+    animation: fadeInUp 0.6s ease-out !important;
+}
+
+/* ===== SCROLLBAR PERSONALIZADA ===== */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--gradient-primary);
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--field-green);
+}
+
+/* ===== TÍTULOS DE PÁGINA ===== */
+.display-6 {
+    color: var(--primary-green) !important;
+}
+
+.text-primary {
+    color: var(--primary-green) !important;
+}
+
+/* ===== CONTADORES Y BADGES ===== */
+.badge.bg-success {
+    background: var(--gradient-primary) !important;
+}
+
+.badge.bg-primary {
+    background: var(--gradient-orange) !important;
+}
+
+/* ===== FOOTER SIN ESPACIO EN BLANCO ===== */
+footer.bg-dark.text-white.text-center.py-4 {
+    margin-bottom: 0 !important;
+    position: relative !important;
+    bottom: 0 !important;
+    width: 100% !important;
+    z-index: 1 !important;
+}
+
+footer p.mb-0 {
+    color: rgba(255, 255, 255, 0.8) !important;
+    font-size: 0.9rem !important;
+}
+
+/* Asegurar que el footer no interfiera con la videollamada */
+footer,
+footer *,
+footer.bg-dark,
+footer.bg-dark * {
+    z-index: 1 !important;
+    position: relative !important;
+}
+
+main.py-4.container {
+    min-height: calc(100vh - 200px) !important;
+    padding-bottom: 0 !important;
+    z-index: 1 !important;
+    position: relative !important;
+}
+
+#app {
+    min-height: 100vh !important;
+    display: flex !important;
+    flex-direction: column !important;
+    z-index: 1 !important;
+    position: relative !important;
+}
+
+main.py-4.container {
+    flex: 1 !important;
+    z-index: 1 !important;
+    position: relative !important;
+}
+
+/* ===== ELIMINAR COMPLETAMENTE EFECTOS DE HOVER PROBLEMÁTICOS ===== */
+/* Asegurar que no haya efectos de hover en el navbar */
+.navbar *,
+.navbar *::before,
+.navbar *::after {
+    transition: none !important;
+    animation: none !important;
+}
+
+.navbar-nav .nav-item,
+.navbar-nav .nav-link,
+.navbar-nav .dropdown,
+.navbar-nav .dropdown-toggle {
+    transition: none !important;
+    animation: none !important;
+    transform: none !important;
+}
+
+/* Eliminar cualquier efecto de hover que pueda estar causando el fondo blanco */
+.navbar-nav .nav-link:hover,
+.navbar-nav .nav-link:focus,
+.navbar-nav .nav-link:active,
+.navbar-nav .nav-link.active,
+.navbar-nav .dropdown:hover,
+.navbar-nav .dropdown-toggle:hover,
+.navbar-nav .dropdown-toggle:focus,
+.navbar-nav .dropdown-toggle:active {
+    background: transparent !important;
+    background-color: transparent !important;
+    background-image: none !important;
+    transform: none !important;
+    scale: 1 !important;
+    filter: none !important;
+    backdrop-filter: none !important;
+    box-shadow: none !important;
+    border: none !important;
+    outline: none !important;
+}
+
+/* Eliminar cualquier pseudoelemento que pueda estar causando problemas */
+.navbar-nav .nav-link::before,
+.navbar-nav .nav-link::after,
+.navbar-nav .dropdown::before,
+.navbar-nav .dropdown::after,
+.navbar-nav .dropdown-toggle::before,
+.navbar-nav .dropdown-toggle::after {
+    display: none !important;
+    content: none !important;
+    background: none !important;
+    background-color: none !important;
+    background-image: none !important;
+}
+
+/* Asegurar que el navbar mantenga su apariencia normal */
+.navbar {
+    background: var(--gradient-navbar) !important;
+    background-color: var(--gradient-navbar) !important;
+    background-image: var(--gradient-navbar) !important;
+}
+
+/* Eliminar cualquier efecto de hover en el body o html que pueda estar causando problemas */
+body:hover,
+html:hover {
+    background: linear-gradient(135deg, #F0F8F0 0%, #E8F5E8 100%) !important;
+}
+
+/* Asegurar que no haya efectos de hover en elementos del navbar */
+.navbar-brand:hover,
+.navbar-brand:focus,
+.navbar-brand:active {
+    background: transparent !important;
+    transform: none !important;
+    color: var(--white) !important;
+}
+
+/* ===== REGLAS ADICIONALES PARA ELIMINAR HOVER PROBLEMÁTICO ===== */
+/* Eliminar cualquier efecto de hover que pueda estar causando el fondo blanco */
+.navbar-nav .nav-link:hover,
+.navbar-nav .nav-link:focus,
+.navbar-nav .nav-link:active,
+.navbar-nav .nav-link.active,
+.navbar-nav .nav-item:hover,
+.navbar-nav .nav-item:focus,
+.navbar-nav .nav-item:active {
+    background: transparent !important;
+    background-color: transparent !important;
+    background-image: none !important;
+    transform: none !important;
+    scale: 1 !important;
+    filter: none !important;
+    backdrop-filter: none !important;
+    box-shadow: none !important;
+    border: none !important;
+    outline: none !important;
+    color: var(--white) !important;
+    text-decoration: none !important;
+}
+
+/* ===== ESTILOS PARA VIDEOLAMADA ===== */
+/* Asegurar que el modal de videollamada funcione correctamente */
+#modalVideollamada {
+    z-index: 1050 !important;
+}
+
+#modalVideollamada .modal-dialog {
+    z-index: 1055 !important;
+}
+
+#modalVideollamada .modal-content {
+    z-index: 1060 !important;
+}
+
+/* Asegurar que los botones del modal sean clickeables */
+#modalVideollamada .btn {
+    z-index: 1070 !important;
+    position: relative !important;
+    pointer-events: auto !important;
+}
+
+/* Asegurar que el backdrop no bloquee la interacción */
+.modal-backdrop {
+    z-index: 1040 !important;
+}
+
+/* Asegurar que el modal esté por encima de todo */
+.modal.show {
+    z-index: 1050 !important;
+}
+
+/* Asegurar que los videos sean visibles */
+#video-local,
+#video-remoto {
+    z-index: 1065 !important;
+    position: relative !important;
+}
+
+/* Asegurar que el estado de la videollamada sea visible */
+#estado-videollamada {
+    z-index: 1070 !important;
+    position: relative !important;
+}
+
+/* ===== ASEGURAR QUE NINGÚN ELEMENTO INTERFIERA CON LA VIDEOLAMADA ===== */
+/* Configurar z-index para todos los elementos de la página */
+body,
+html,
+#app,
+.container,
+.row,
+.col,
+.card,
+.card-body,
+.table,
+.table *,
+.navbar,
+.navbar * {
+    z-index: 1 !important;
+    position: relative !important;
+}
+
+/* Asegurar que solo la videollamada tenga z-index alto */
+#modalVideollamada,
+#modalVideollamada *,
+.modal-backdrop,
+.modal.show,
+.modal.show * {
+    z-index: auto !important;
+}
+
+/* Asegurar que el footer tenga z-index normal y sea visible */
+footer,
+footer * {
+    z-index: auto !important;
+    position: relative !important;
+    pointer-events: auto !important;
+}
+
+/* Asegurar que el contenido principal no bloquee la videollamada */
+main.py-4.container,
+.container,
+.row,
+.col,
+.card,
+.card-body {
+    z-index: 1 !important;
+    position: relative !important;
+    pointer-events: auto !important;
+}
+
+/* ===== PRIORIDAD MÁXIMA PARA VIDEOLAMADA ===== */
+/* Asegurar que el modal de videollamada esté por encima de TODO */
+#modalVideollamada {
+    z-index: 9999 !important;
+    position: fixed !important;
+}
+
+#modalVideollamada .modal-dialog {
+    z-index: 10000 !important;
+    position: relative !important;
+}
+
+#modalVideollamada .modal-content {
+    z-index: 10001 !important;
+    position: relative !important;
+}
+
+#modalVideollamada .modal-header,
+#modalVideollamada .modal-body,
+#modalVideollamada .modal-footer {
+    z-index: 10002 !important;
+    position: relative !important;
+}
+
+/* Asegurar que los botones del modal sean clickeables */
+#modalVideollamada .btn,
+#modalVideollamada button,
+#modalVideollamada input,
+#modalVideollamada select,
+#modalVideollamada textarea {
+    z-index: 10003 !important;
+    position: relative !important;
+    pointer-events: auto !important;
+}
+
+/* Asegurar que el backdrop esté por debajo del modal pero por encima de todo lo demás */
+.modal-backdrop {
+    z-index: 9998 !important;
+    position: fixed !important;
+}
+
+/* Asegurar que los videos sean visibles y funcionales */
+#video-local,
+#video-remoto {
+    z-index: 10004 !important;
+    position: relative !important;
+    pointer-events: auto !important;
+}
+
+/* Asegurar que el estado de la videollamada sea visible */
+#estado-videollamada {
+    z-index: 10005 !important;
+    position: relative !important;
+    pointer-events: auto !important;
+}
+
+/* Asegurar que el modal esté por encima de cualquier elemento de la página */
+.modal.show {
+    z-index: 9999 !important;
+}
+
+/* Forzar que ningún elemento de la página tenga z-index alto */
+body *:not(#modalVideollamada):not(#modalVideollamada *):not(.modal-backdrop) {
+    z-index: 1 !important;
+}
+
+/* ===== FOOTER VISIBLE EN TODAS LAS PÁGINAS ===== */
+/* El footer ahora es visible en todas las páginas, incluyendo chats */
+
+/* ===== ESPACIADO ADICIONAL PARA CHATS ===== */
+/* Agregar espacio entre el contenido de chat y el footer */
+.chat-messages,
+.chat-container,
+.chat-page,
+.chat-show,
+.chat-index,
+.chat-buscar {
+    margin-bottom: 3rem !important;
+    padding-bottom: 2rem !important;
+}
+
+/* Agregar espacio específico para el contenedor principal de chat */
+.chat-messages ~ *:last-child,
+.chat-container ~ *:last-child,
+.chat-page ~ *:last-child {
+    margin-bottom: 4rem !important;
+}
+
+/* Asegurar que haya espacio antes del footer en páginas de chat */
+body:has(.chat-messages) main,
+body:has(.chat-container) main,
+body:has(.chat-page) main {
+    padding-bottom: 3rem !important;
+    margin-bottom: 2rem !important;
+}
+
+/* ===== MODAL DE VIDEOLAMADA SIN BLOQUEO DE SCROLL ===== */
+/* Asegurar que el modal de videollamada no bloquee el scroll */
+#modalVideollamada {
+    z-index: 9999 !important;
+    position: fixed !important;
+}
+
+#modalVideollamada .modal-dialog {
+    z-index: 10000 !important;
+    position: relative !important;
+}
+
+#modalVideollamada .modal-content {
+    z-index: 10001 !important;
+    position: relative !important;
+}
+
+#modalVideollamada .modal-header,
+#modalVideollamada .modal-body,
+#modalVideollamada .modal-footer {
+    z-index: 10002 !important;
+    position: relative !important;
+}
+
+/* Asegurar que los botones del modal sean clickeables */
+#modalVideollamada .btn,
+#modalVideollamada button,
+#modalVideollamada input,
+#modalVideollamada select,
+#modalVideollamada textarea {
+    z-index: 10003 !important;
+    position: relative !important;
+    pointer-events: auto !important;
+}
+
+/* Asegurar que el backdrop esté por debajo del modal pero por encima de todo lo demás */
+.modal-backdrop {
+    z-index: 9998 !important;
+    position: fixed !important;
+}
+
+/* Asegurar que los videos sean visibles y funcionales */
+#video-local,
+#video-remoto {
+    z-index: 10004 !important;
+    position: relative !important;
+    pointer-events: auto !important;
+}
+
+/* Asegurar que el estado de la videollamada sea visible */
+#estado-videollamada {
+    z-index: 10005 !important;
+    position: relative !important;
+    pointer-events: auto !important;
+}
+
+/* ===== PREVENIR BLOQUEO DE SCROLL ===== */
+/* Asegurar que el body mantenga su scroll normal */
+body {
+    overflow: auto !important;
+    overflow-x: hidden !important;
+}
+
+/* Prevenir que el modal bloquee el scroll */
+body.modal-open {
+    overflow: auto !important;
+    padding-right: 0 !important;
+}
+
+/* Asegurar que el modal no interfiera con el scroll */
+#modalVideollamada {
+    overflow: visible !important;
+}
+
+#modalVideollamada .modal-dialog {
+    overflow: visible !important;
+}
+
+#modalVideollamada .modal-content {
+    overflow: visible !important;
+}
+
+/* Asegurar que no haya backdrop que oscurezca la pantalla */
+.modal-backdrop {
+    display: none !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+}
+
+/* ===== REGLAS ADICIONALES PARA MODAL FUNCIONAL ===== */
+/* Asegurar que el modal se posicione correctamente sin bloquear */
+#modalVideollamada {
+    position: fixed !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    margin: 0 !important;
+    width: auto !important;
+    height: auto !important;
+}
+
+/* Asegurar que el modal no interfiera con el contenido de la página */
+#modalVideollamada .modal-dialog {
+    margin: 0 !important;
+    max-width: 90vw !important;
+    max-height: 90vh !important;
+}
+
+/* Asegurar que el contenido del modal sea visible */
+#modalVideollamada .modal-content {
+    background: white !important;
+    border: 2px solid var(--primary-green) !important;
+    border-radius: 15px !important;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.2) !important;
+}
+
+/* Asegurar que el modal no bloquee eventos del mouse */
+#modalVideollamada * {
+    pointer-events: auto !important;
+}
+
+/* Prevenir que el modal bloquee el scroll de la página */
+html, body {
+    overflow: auto !important;
+    overflow-x: hidden !important;
+}
+
+/* Asegurar que el modal esté por encima de todo pero no bloquee */
+#modalVideollamada {
+    z-index: 99999 !important;
+    pointer-events: auto !important;
+}
+
+/* Asegurar que el contenido detrás del modal sea interactivo */
+#modalVideollamada ~ *,
+#modalVideollamada + * {
+    pointer-events: auto !important;
+}
+
+/* ===== FOOTER VISIBLE EN TODAS LAS PÁGINAS ===== */
+/* Asegurar que el footer sea visible en todas las páginas */
+footer.bg-dark.text-white.text-center.py-4 {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    height: auto !important;
+    overflow: visible !important;
+    z-index: 1 !important;
+    position: relative !important;
+}
+
+/* Asegurar que el footer no esté oculto en ninguna página */
+footer {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    height: auto !important;
+    overflow: visible !important;
+}

@@ -6,7 +6,7 @@
 
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
-    <title>{{ config('app.name', 'Laravel') }}</title>
+    <title>{{ config('app.name', 'Fleg Football') }}</title>
 
     <link rel="dns-prefetch" href="//fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=Nunito" rel="stylesheet">
@@ -14,98 +14,53 @@
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-    @vite(['resources/sass/app.scss', 'resources/js/app.js'])
+    @vite(['resources/sass/app.scss', 'resources/css/app.css', 'resources/css/futbol.css', 'resources/js/app.js'])
+    
+    <!-- CSS de formularios con prioridad máxima -->
+    <link rel="stylesheet" href="{{ asset('css/forms.css') }}">
     
     <!-- Bootstrap JavaScript -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // Inicializar dropdowns de Bootstrap 5
-            var dropdownTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="dropdown"]'));
-            var dropdownList = dropdownTriggerList.map(function (dropdownTriggerEl) {
-                return new bootstrap.Dropdown(dropdownTriggerEl);
-            });
+            // ELIMINAR EFECTOS DE HOVER PROBLEMÁTICOS
+            // Deshabilitar cualquier efecto de hover en el navbar
+            const navbar = document.querySelector('.navbar');
+            if (navbar) {
+                // Eliminar cualquier evento de hover que pueda estar causando problemas
+                navbar.removeEventListener('mouseenter', function() {});
+                navbar.removeEventListener('mouseleave', function() {});
+                
+                // Asegurar que no haya transformaciones
+                navbar.style.transform = 'none';
+                navbar.style.transition = 'none';
+            }
             
-            // Asegurar que el dropdown funcione manualmente si es necesario
-            document.querySelectorAll('.dropdown-toggle').forEach(function(element) {
-                element.addEventListener('click', function(e) {
+            // Deshabilitar efectos de hover en todos los enlaces del navbar
+            document.querySelectorAll('.navbar-nav .nav-link').forEach(function(link) {
+                link.addEventListener('mouseenter', function(e) {
                     e.preventDefault();
                     e.stopPropagation();
-                    
-                    // Toggle manual del dropdown
-                    var dropdownMenu = this.nextElementSibling;
-                    if (dropdownMenu && dropdownMenu.classList.contains('dropdown-menu')) {
-                        dropdownMenu.classList.toggle('show');
-                        this.setAttribute('aria-expanded', dropdownMenu.classList.contains('show'));
-                    }
+                    // No hacer nada en hover
                 });
-            });
-            
-            // Cerrar dropdown al hacer click fuera
-            document.addEventListener('click', function(e) {
-                if (!e.target.closest('.dropdown')) {
-                    document.querySelectorAll('.dropdown-menu.show').forEach(function(menu) {
-                        menu.classList.remove('show');
-                    });
-                    document.querySelectorAll('.dropdown-toggle[aria-expanded="true"]').forEach(function(toggle) {
-                        toggle.setAttribute('aria-expanded', 'false');
-                    });
-                }
+                
+                link.addEventListener('mouseleave', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    // No hacer nada al salir del hover
+                });
             });
         });
     </script>
-    
-    <style>
-        .navbar-nav .dropdown-menu {
-            border: none;
-            border-radius: 10px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-            margin-top: 5px;
-            min-width: 200px;
-        }
-        
-        .navbar-nav .dropdown-item {
-            padding: 8px 20px;
-            transition: all 0.2s ease;
-        }
-        
-        .navbar-nav .dropdown-item:hover {
-            background-color: #f8f9fa;
-            transform: translateX(5px);
-        }
-        
-        .navbar-nav .dropdown-item.text-danger:hover {
-            background-color: #fee;
-            color: #dc3545 !important;
-        }
-        
-        .navbar-nav .nav-link.dropdown-toggle {
-            padding: 8px 15px;
-            border-radius: 25px;
-            transition: all 0.3s ease;
-            cursor: pointer;
-        }
-        
-        .navbar-nav .nav-link.dropdown-toggle:hover {
-            background-color: #f8f9fa;
-        }
-        
-        .navbar-nav .nav-link.dropdown-toggle.show {
-            background-color: #e9ecef;
-        }
-        
-        .dropdown-menu.show {
-            display: block !important;
-        }
-    </style>
 </head>
 <body>
     <div id="app">
-        <nav class="navbar navbar-expand-md navbar-light bg-white shadow-sm border-bottom">
+        <nav class="navbar navbar-expand-md navbar-light shadow-sm">
             <div class="container">
-                <a class="navbar-brand fw-bold" href="{{ url('/') }}">
-                    Fleg - Quiniela
+                <a class="navbar-brand" href="{{ url('/') }}">
+                    <i class="fas fa-futbol me-2"></i>
+                    Fleg Football
                 </a>
 
                 <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
@@ -120,50 +75,43 @@
                     <ul class="navbar-nav me-auto">
                     @if(session('usuario_logueado'))
                         <li class="nav-item">
-                            <a class="nav-link" href="{{ route('quinielas.index') }}">Quinielas</a>
+                            <a class="nav-link" href="{{ route('quinielas.index') }}">
+                                <i class="fas fa-trophy me-1"></i> Quinielas
+                            </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="{{ route('equipos.index') }}">Equipos</a>
+                            <a class="nav-link" href="{{ route('equipos.index') }}">
+                                <i class="fas fa-users me-1"></i> Equipos
+                            </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="{{ route('chats.index') }}">Chats</a>
+                            <a class="nav-link" href="{{ route('chats.index') }}">
+                                <i class="fas fa-comments me-1"></i> Chats
+                            </a>
                         </li>
                     @endif
                 </ul>
 
                 <ul class="navbar-nav ms-auto">
                     @if(session('usuario_logueado'))
-                        <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                <i class="fa fa-user-circle me-2"></i> 
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ route('auth.dashboard') }}">
+                                <i class="fas fa-user-circle me-2"></i> 
                                 <span class="fw-semibold">{{ session('usuario_registrado') }}</span>
                             </a>
-                            <ul class="dropdown-menu dropdown-menu-end shadow">
-                                <li>
-                                    <a class="dropdown-item" href="{{ route('auth.dashboard') }}">
-                                        <i class="fa fa-tachometer-alt me-2"></i> Mi Panel
-                                    </a>
-                                </li>
-                                <li>
-                                    <a class="dropdown-item" href="{{ route('auth.dashboard') }}">
-                                        <i class="fa fa-user me-2"></i> Ver Perfil
-                                    </a>
-                                </li>
-                                <li><hr class="dropdown-divider"></li>
-                                <li>
-                                    <form action="{{ route('auth.logout') }}" method="POST" style="display: inline;">
-                                        @csrf
-                                        <button type="submit" class="dropdown-item text-danger fw-bold">
-                                            <i class="fa fa-sign-out-alt me-2"></i> Cerrar Sesión
-                                        </button>
-                                    </form>
-                                </li>
-                            </ul>
+                        </li>
+                        <li class="nav-item">
+                            <form action="{{ route('auth.logout') }}" method="POST" style="display: inline;">
+                                @csrf
+                                <button type="submit" class="nav-link btn btn-link p-0">
+                                    <i class="fas fa-sign-out-alt me-2"></i> Cerrar Sesión
+                                </button>
+                            </form>
                         </li>
                     @else
                         <li class="nav-item">
-                            <a class="nav-link" href="{{ route('auth.login') }}">
-                                <i class="fa fa-sign-in-alt me-2"></i> ¡Bienvenido a la quiniela más grande de fútbol!
+                            <a class="nav-link" >
+                                ¡Bienvenido a la quiniela más grande de fútbol!
                             </a>
                         </li>
                     @endif
@@ -172,9 +120,17 @@
             </div>
         </nav>
 
+        <!-- Contenido Principal -->
         <main class="py-4 container">
             @yield('content')
         </main>
+
+
+        <footer class="bg-dark text-white text-center py-3">
+            <div class="container">
+                <p class="mb-0">&copy; {{ date('Y') }} Fleg Football. Todos los derechos reservados.</p>
+            </div>
+        </footer>
     </div>
 </body>
 </html>

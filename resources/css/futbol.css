@@ -1,0 +1,338 @@
+/* ===== ESTILOS FUTBOLEROS ADICIONALES - COLORES INFFUT ===== */
+
+/* Efectos de hover para las cards - DESACTIVADOS */
+.card:hover .card-header {
+    background: var(--gradient-primary) !important;
+    transform: none !important;
+    transition: none !important;
+}
+
+/* Animación para los badges de estado - DESACTIVADA */
+.badge {
+    position: relative !important;
+    overflow: hidden !important;
+}
+
+.badge::before {
+    display: none !important;
+}
+
+.badge:hover::before {
+    display: none !important;
+}
+
+/* Efectos para los botones - DESACTIVADOS */
+.btn {
+    position: relative !important;
+    overflow: hidden !important;
+    z-index: 1 !important;
+}
+
+.btn::after {
+    display: none !important;
+}
+
+.btn:hover::after {
+    display: none !important;
+}
+
+/* Efectos para las tablas - DESACTIVADOS */
+.table tbody tr {
+    position: relative !important;
+}
+
+.table tbody tr::before {
+    display: none !important;
+}
+
+.table tbody tr:hover::before {
+    display: none !important;
+}
+
+/* Efectos para los iconos - DESACTIVADOS */
+.fas, .fab {
+    transition: none !important;
+}
+
+.nav-link:hover .fas,
+.nav-link:hover .fab {
+    transform: none !important;
+}
+
+/* Efectos para el navbar - DESACTIVADOS */
+.navbar {
+    position: relative !important;
+    overflow: hidden !important;
+}
+
+.navbar::before {
+    display: none !important;
+}
+
+.navbar:hover::before {
+    display: none !important;
+}
+
+/* Efectos para las cards - DESACTIVADOS */
+.card {
+    position: relative !important;
+    overflow: hidden !important;
+}
+
+.card::before {
+    display: none !important;
+}
+
+.card:hover::before {
+    display: none !important;
+}
+
+/* Efectos para los badges de equipos - DESACTIVADOS */
+.team-logo {
+    position: relative !important;
+    overflow: hidden !important;
+}
+
+.team-logo::after {
+    display: none !important;
+}
+
+.team-logo:hover::after {
+    display: none !important;
+}
+
+/* Efectos para los enlaces de navegación - DESACTIVADOS */
+.navbar-nav .nav-link {
+    position: relative !important;
+}
+
+.navbar-nav .nav-link::after {
+    display: none !important;
+}
+
+.navbar-nav .nav-link:hover::after {
+    display: none !important;
+}
+
+/* Efectos para los dropdowns - DESACTIVADOS */
+.dropdown-menu {
+    transform: none !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    transition: none !important;
+}
+
+.dropdown-menu.show {
+    transform: none !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+}
+
+/* Efectos para la paginación - DESACTIVADOS */
+.page-link {
+    position: relative !important;
+    overflow: hidden !important;
+}
+
+.page-link::before {
+    display: none !important;
+}
+
+.page-link:hover::before {
+    display: none !important;
+}
+
+.page-link:hover {
+    color: var(--primary-green) !important;
+    border-color: var(--primary-green) !important;
+}
+
+/* Efectos para las alertas - DESACTIVADOS */
+.alert {
+    position: relative !important;
+    overflow: hidden !important;
+}
+
+.alert::before {
+    display: none !important;
+}
+
+.alert:hover::before {
+    display: none !important;
+}
+
+/* Efectos para los iconos de equipos - DESACTIVADOS */
+.team-vs .team {
+    transition: none !important;
+}
+
+.team-vs .team:hover {
+    transform: none !important;
+}
+
+.team-vs .team:hover .team-name {
+    color: var(--primary-green) !important;
+}
+
+/* Efectos para los badges de liga - DESACTIVADOS */
+.league-info .badge {
+    position: relative !important;
+    overflow: hidden !important;
+}
+
+.league-info .badge::before {
+    display: none !important;
+}
+
+.league-info .badge:hover::before {
+    display: none !important;
+}
+
+/* Efectos para el footer - DESACTIVADOS */
+footer {
+    position: relative !important;
+    overflow: hidden !important;
+    margin-top: auto !important;
+}
+
+footer::before {
+    display: none !important;
+}
+
+footer:hover::before {
+    display: none !important;
+}
+
+.social-links a {
+    transition: none !important;
+}
+
+.social-links a:hover {
+    transform: none !important;
+    color: var(--orange) !important;
+}
+
+/* Efectos para los títulos de página - DESACTIVADOS */
+.display-6 {
+    position: relative !important;
+    overflow: hidden !important;
+}
+
+.display-6::after {
+    display: none !important;
+}
+
+.display-6:hover::after {
+    display: none !important;
+}
+
+/* Efectos para los contadores - DESACTIVADOS */
+.badge.bg-success,
+.badge.bg-primary {
+    position: relative !important;
+    overflow: hidden !important;
+}
+
+.badge.bg-success::before,
+.badge.bg-primary::before {
+    display: none !important;
+}
+
+.badge.bg-success:hover::before,
+.badge.bg-primary:hover::before {
+    display: none !important;
+}
+
+/* Responsive para móviles */
+@media (max-width: 768px) {
+    .card::before {
+        display: none !important;
+    }
+    
+    .navbar::before {
+        display: none !important;
+    }
+    
+    .team-logo::after {
+        display: none !important;
+    }
+}
+
+/* Efectos de carga - DESACTIVADOS */
+@keyframes pulse {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+.card-header:hover {
+    animation: none !important;
+}
+
+/* Efectos para los botones de filtro - DESACTIVADOS */
+.btn-outline-primary,
+.btn-outline-success {
+    transition: none !important;
+    border-width: 2px !important;
+}
+
+.btn-outline-primary:hover,
+.btn-outline-success:hover {
+    transform: none !important;
+    box-shadow: none !important;
+}
+
+/* Efectos para las celdas de tabla - DESACTIVADOS */
+.table tbody td {
+    transition: none !important;
+}
+
+.table tbody td:hover {
+    background: none !important;
+}
+
+/* Efectos para los iconos de estado - DESACTIVADOS */
+.badge i {
+    transition: none !important;
+}
+
+.badge:hover i {
+    transform: none !important;
+}
+
+/* Efectos específicos para colores Infutt */
+.text-primary {
+    color: var(--primary-green) !important;
+}
+
+.text-orange {
+    color: var(--orange) !important;
+}
+
+.bg-orange {
+    background-color: var(--orange) !important;
+}
+
+.border-orange {
+    border-color: var(--orange) !important;
+}
+
+/* Efectos para elementos con naranja */
+.badge.bg-warning,
+.badge.bg-info {
+    background: var(--gradient-orange) !important;
+    color: var(--white) !important;
+}
+
+/* Efectos para botones con naranja */
+.btn-outline-success:hover {
+    background: var(--gradient-orange);
+    color: var(--white);
+    box-shadow: var(--shadow-orange);
+}

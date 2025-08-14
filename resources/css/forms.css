@@ -1,0 +1,159 @@
+/* ===== CSS AGRESIVO PARA FORMULARIOS - PRIORIDAD MÁXIMA ===== */
+
+/* RESET COMPLETO DE INPUTS */
+*[type="text"],
+*[type="email"],
+*[type="password"],
+*[type="number"],
+*[type="tel"],
+*[type="url"],
+*[type="search"],
+*[type="date"],
+*[type="time"],
+*[type="datetime-local"],
+*[type="month"],
+*[type="week"],
+input,
+textarea,
+select,
+.form-control,
+.form-input,
+.form-textarea,
+.form-select {
+    /* Forzar funcionalidad */
+    pointer-events: auto !important;
+    user-select: auto !important;
+    -webkit-user-select: auto !important;
+    -moz-user-select: auto !important;
+    -ms-user-select: auto !important;
+    
+    /* Forzar visibilidad */
+    opacity: 1 !important;
+    visibility: visible !important;
+    display: block !important;
+    
+    /* Forzar apariencia */
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    border: 2px solid #007bff !important;
+    border-radius: 4px !important;
+    
+    /* Forzar dimensiones */
+    width: 100% !important;
+    height: auto !important;
+    min-height: 38px !important;
+    padding: 8px 12px !important;
+    margin: 0 !important;
+    
+    /* Forzar tipografía */
+    font-family: Arial, sans-serif !important;
+    font-size: 16px !important;
+    font-weight: normal !important;
+    line-height: 1.5 !important;
+    
+    /* Forzar comportamiento */
+    cursor: text !important;
+    resize: none !important;
+    overflow: visible !important;
+    
+    /* Quitar transformaciones */
+    transform: none !important;
+    filter: none !important;
+    backdrop-filter: none !important;
+    -webkit-transform: none !important;
+    -moz-transform: none !important;
+    -ms-transform: none !important;
+    
+    /* Forzar z-index */
+    z-index: 9999 !important;
+    position: relative !important;
+    
+    /* Quitar cualquier CSS conflictivo */
+    box-shadow: none !important;
+    text-shadow: none !important;
+    outline: none !important;
+}
+
+/* ESTADOS DE INPUT - SIN HOVER */
+input:focus,
+textarea:focus,
+select:focus,
+.form-control:focus {
+    border-color: #28a745 !important;
+    box-shadow: 0 0 0 3px rgba(40, 167, 69, 0.25) !important;
+    outline: 2px solid #28a745 !important;
+    background-color: #ffffff !important;
+    color: #000000 !important;
+}
+
+/* INPUTS ESPECÍFICOS */
+input[type="password"] {
+    -webkit-text-security: none !important;
+    text-security: none !important;
+    font-family: Arial, sans-serif !important;
+}
+
+input[type="email"] {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+}
+
+/* LABELS */
+label,
+.col-form-label,
+.form-label {
+    color: #000000 !important;
+    font-weight: bold !important;
+    font-size: 16px !important;
+    display: block !important;
+    margin-bottom: 8px !important;
+    pointer-events: auto !important;
+}
+
+/* BOTONES - SIN HOVER */
+.btn,
+button,
+input[type="submit"],
+input[type="button"] {
+    pointer-events: auto !important;
+    cursor: pointer !important;
+    background-color: #007bff !important;
+    color: #ffffff !important;
+    border: none !important;
+    padding: 10px 20px !important;
+    border-radius: 4px !important;
+    font-size: 16px !important;
+    font-weight: bold !important;
+}
+
+/* FORZAR QUE TODO FUNCIONE */
+* {
+    pointer-events: auto !important;
+}
+
+/* QUITAR CUALQUIER CSS QUE BLOQUEE */
+[style*="pointer-events: none"] {
+    pointer-events: auto !important;
+}
+
+[style*="user-select: none"] {
+    user-select: auto !important;
+}
+
+/* OVERRIDE FINAL */
+input,
+textarea,
+select {
+    all: unset !important;
+    display: block !important;
+    width: 100% !important;
+    padding: 8px 12px !important;
+    border: 2px solid #007bff !important;
+    border-radius: 4px !important;
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    font-size: 16px !important;
+    pointer-events: auto !important;
+    user-select: auto !important;
+    cursor: text !important;
+}

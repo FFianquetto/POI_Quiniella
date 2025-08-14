@@ -45,23 +45,40 @@ class VideoCall {
         }
         
         if (this.btnToggleAudio) {
-            this.btnToggleAudio.addEventListener('click', () => this.toggleAudio());
+            this.btnToggleAudio.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.toggleAudio();
+            });
         }
         
         if (this.btnToggleVideo) {
-            this.btnToggleVideo.addEventListener('click', () => this.toggleVideo());
+            this.btnToggleVideo.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.toggleVideo();
+            });
         }
         
         if (this.btnColgar) {
-            this.btnColgar.addEventListener('click', () => this.endCall());
+            this.btnColgar.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.endCall();
+            });
         }
         
         if (this.btnCerrarVideollamada) {
-            this.btnCerrarVideollamada.addEventListener('click', () => this.endCall());
+            this.btnCerrarVideollamada.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.endCall();
+            });
         }
         
         if (this.modalVideollamada) {
             this.modalVideollamada.addEventListener('hidden.bs.modal', () => this.endCall());
+            this.modalVideollamada.addEventListener('hide.bs.modal', () => this.endCall());
         }
     }
     
@@ -71,21 +88,19 @@ class VideoCall {
                 throw new Error('WebRTC no está soportado en este navegador');
             }
             
-            if (typeof bootstrap === 'undefined') {
-                throw new Error('Bootstrap no está cargado. Por favor, recarga la página.');
-            }
-            
-            try {
-                const modal = new bootstrap.Modal(this.modalVideollamada);
-                modal.show();
-            } catch (bootstrapError) {
-                this.modalVideollamada.style.display = 'block';
-                this.modalVideollamada.classList.add('show');
-                document.body.classList.add('modal-open');
-                
-                const backdrop = document.createElement('div');
-                backdrop.className = 'modal-backdrop fade show';
-                document.body.appendChild(backdrop);
+            if (typeof bootstrap !== 'undefined' && this.modalVideollamada) {
+                try {
+                    const modal = new bootstrap.Modal(this.modalVideollamada, {
+                        backdrop: false,
+                        keyboard: true
+                    });
+                    modal.show();
+                } catch (bootstrapError) {
+                    console.error('Error al mostrar modal con Bootstrap:', bootstrapError);
+                    this.showModalManually();
+                }
+            } else {
+                this.showModalManually();
             }
             
             this.localStream = await navigator.mediaDevices.getUserMedia({
@@ -318,13 +333,17 @@ class VideoCall {
         
         this.stopSignalingPolling();
         
+        // Cerrar el modal correctamente
         if (typeof bootstrap !== 'undefined' && this.modalVideollamada) {
             try {
                 const modal = bootstrap.Modal.getInstance(this.modalVideollamada);
                 if (modal) {
                     modal.hide();
+                } else {
+                    this.closeModalManually();
                 }
             } catch (error) {
+                console.error('Error al cerrar modal con Bootstrap:', error);
                 this.closeModalManually();
             }
         } else {
@@ -351,11 +370,37 @@ class VideoCall {
         if (this.modalVideollamada) {
             this.modalVideollamada.style.display = 'none';
             this.modalVideollamada.classList.remove('show');
-            document.body.classList.remove('modal-open');
-            const backdrop = document.querySelector('.modal-backdrop');
-            if (backdrop) {
-                backdrop.remove();
-            }
+            
+            // NO remover clases del body que no agregamos
+            // document.body.classList.remove('modal-open');
+            
+            // NO remover backdrops que no creamos
+            // const backdrops = document.querySelectorAll('.modal-backdrop');
+            // backdrops.forEach(backdrop => {
+            //     backdrop.remove();
+            // });
+            
+            // NO modificar estilos del body
+            // document.body.style.overflow = '';
+            // document.body.style.paddingRight = '';
+        }
+    }
+    
+    showModalManually() {
+        if (this.modalVideollamada) {
+            this.modalVideollamada.style.display = 'block';
+            this.modalVideollamada.classList.add('show');
+            
+            // NO bloquear el scroll del body
+            // document.body.classList.add('modal-open');
+            
+            // NO crear backdrop que oscurezca la pantalla
+            // if (!document.querySelector('.modal-backdrop')) {
+            //     const backdrop = document.createElement('div');
+            //     backdrop.className = 'modal-backdrop fade show';
+            //     backdrop.style.zIndex = '1040';
+            //     document.body.appendChild(backdrop);
+            // }
         }
     }
     
