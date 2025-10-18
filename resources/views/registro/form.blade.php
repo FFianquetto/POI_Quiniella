@@ -27,7 +27,7 @@
     <div class="col-12 mt-3">
         <button type="submit" class="btn btn-primary">{{ __('Registrar') }}</button>
     </div>
-</div>
+</div > 
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
