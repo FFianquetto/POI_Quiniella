@@ -49,9 +49,10 @@
                         <div class="row mb-3">
                             <label for="contrasena" class="col-md-4 col-form-label text-md-end">{{ __('Contraseña') }}</label>
 
-                            <div class="col-md-6">
+                            <div class="col-md-6 position-relative">
                                 <input id="contrasena" type="password" class="form-control @error('contrasena') is-invalid @enderror" 
-                                       name="contrasena" required autocomplete="current-password">
+                                       name="contrasena" required autocomplete="current-password" style="padding-right: 40px;">
+                                <i class="fas fa-eye position-absolute" id="togglePasswordLogin" style="right: 45px; top: 50%; transform: translateY(-50%); cursor: pointer; z-index: 8;" id="toggleIconLogin"></i>
 
                                 @error('contrasena')
                                     <span class="invalid-feedback" role="alert">
@@ -85,4 +86,25 @@
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const togglePassword = document.getElementById('togglePasswordLogin');
+    const passwordInput = document.getElementById('contrasena');
+    const toggleIcon = document.getElementById('toggleIconLogin');
+    
+    togglePassword.addEventListener('click', function() {
+        // Cambiar el tipo de input
+        if (passwordInput.type === 'password') {
+            passwordInput.type = 'text';
+            toggleIcon.classList.remove('fa-eye');
+            toggleIcon.classList.add('fa-eye-slash');
+        } else {
+            passwordInput.type = 'password';
+            toggleIcon.classList.remove('fa-eye-slash');
+            toggleIcon.classList.add('fa-eye');
+        }
+    });
+});
+</script>
 @endsection

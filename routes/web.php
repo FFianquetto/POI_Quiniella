@@ -9,6 +9,7 @@ use App\Http\Controllers\EquipoController;
 use App\Http\Controllers\QuinielaController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\ComentarioController;
+use App\Http\Controllers\TorneoController;
 
 Route::get('/', function () {
     return redirect()->route('auth.login');
@@ -56,3 +57,9 @@ Route::post('/chats/{chat}/mensaje', [ChatController::class, 'enviarMensaje'])->
 // Rutas para videollamadas
 Route::post('/chats/{chat}/videollamada/iniciar', [ChatController::class, 'iniciarVideollamada'])->name('chats.videollamada.iniciar');
 Route::post('/chats/{chat}/videollamada/señalizacion', [ChatController::class, 'señalizacion'])->name('chats.videollamada.señalizacion');
+
+// Rutas para el simulador de torneo
+Route::get('/torneo', [TorneoController::class, 'index'])->name('torneo.index');
+Route::post('/torneo/generate', [TorneoController::class, 'generate'])->name('torneo.generate');
+Route::post('/torneo/simulate-match', [TorneoController::class, 'simulateMatch'])->name('torneo.simulate-match');
+Route::get('/torneo/stats', [TorneoController::class, 'getStats'])->name('torneo.stats');
