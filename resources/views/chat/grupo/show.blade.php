@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @section('template_title')
-    {{ __('Chat') }} - {{ $otroUsuario ? $otroUsuario->nombre : 'Chat Grupal' }}
+    {{ __('Chat Grupal') }} - {{ $chat->nombre }}
 @endsection
 
 @section('content')
@@ -16,22 +16,30 @@
                                 <i class="fa fa-arrow-left"></i> Volver
                             </a>
                             <span class="h5 mb-0">
-                                @if($otroUsuario)
-                                    Chat con {{ $otroUsuario->nombre }}
-                                @else
-                                    Chat Grupal
-                                @endif
+                                {{ $chat->nombre }}
                             </span>
+                            <small class="text-muted ms-2">{{ $chat->contarMiembros() }} miembros</small>
+                    </div>
+                    <div>
+                            <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalInfoGrupo">
+                                <i class="fa fa-info-circle"></i> Info
+                            </button>
                         </div>
                     </div>
                 </div>
-
+                
                 <div class="card-body" style="height: 400px; overflow-y: auto;" id="chat-messages">
-                    @if($mensajes->count() > 0)
+                    @if($chat->mensajes->count() > 0)
                         <div class="chat-messages">
-                            @foreach ($mensajes as $mensaje)
-                                <div class="message {{ $mensaje->registro_id_emisor == $usuario->id ? 'message-own' : 'message-other' }} mb-3">
+                            @foreach ($chat->mensajes as $mensaje)
+                                <div class="message {{ $mensaje->registro_id_emisor == session('registro_id') ? 'message-own' : 'message-other' }} mb-3">
                                     <div class="message-content">
+                                        @if($mensaje->registro_id_emisor != session('registro_id'))
+                                            <div class="message-sender">
+                                                <strong>{{ $mensaje->emisor->nombre }}</strong>
+                                            </div>
+                    @endif
+                    
                                         @if($mensaje->tipo === 'texto')
                                             <div class="message-text">
                                                 {{ $mensaje->contenido }}
@@ -43,8 +51,8 @@
                                                     <small class="d-block mt-1">{{ $mensaje->archivo_nombre }}</small>
                                                 @else
                                                     <div class="alert alert-warning">Imagen no disponible</div>
-                                                @endif
-                                            </div>
+                    @endif
+                </div>
                                         @elseif($mensaje->tipo === 'video')
                                             <div class="message-media">
                                                 @if($mensaje->archivo_url)
@@ -57,7 +65,7 @@
                                                 @else
                                                     <div class="alert alert-warning">Video no disponible</div>
                                                 @endif
-                                            </div>
+            </div>
                                         @elseif($mensaje->tipo === 'audio')
                                             <div class="message-media">
                                                 @if($mensaje->archivo_url)
@@ -71,7 +79,7 @@
                                                 @else
                                                     <div class="alert alert-warning">Audio no disponible</div>
                                                 @endif
-                                            </div>
+                </div>
                                         @elseif($mensaje->tipo === 'archivo')
                                             <div class="message-file">
                                                 @if($mensaje->archivo_url)
@@ -81,12 +89,12 @@
                                                     </a>
                                                 @else
                                                     <div class="alert alert-warning">Archivo no disponible</div>
-                                                @endif
-                                            </div>
-                                        @endif
+            @endif
+                </div>
+            @endif
                                         <small class="message-time text-muted">
                                             {{ $mensaje->created_at->format('H:i') }}
-                                            @if($mensaje->registro_id_emisor == $usuario->id)
+                                            @if($mensaje->registro_id_emisor == session('registro_id'))
                                                 @if($mensaje->leido)
                                                     <i class="fa fa-check-double text-primary"></i>
                                                 @else
@@ -103,13 +111,13 @@
                             <i class="fa fa-comments fa-3x text-muted mb-3"></i>
                             <h5>No hay mensajes aún</h5>
                             <p class="text-muted">Comienza la conversación enviando un mensaje</p>
-                        </div>
+            </div>
                     @endif
                 </div>
 
                 <div class="card-footer">
                     <form action="{{ route('chat.mensaje', $chat->id) }}" method="POST" enctype="multipart/form-data" id="chat-form">
-                        @csrf
+                            @csrf
                         <div class="row">
                             <div class="col-md-12">
                                 <div class="input-group">
@@ -127,10 +135,6 @@
                                     
                                     <button type="button" class="btn btn-outline-warning" id="btn-video" title="Grabar video">
                                         <i class="fa fa-video-camera"></i>
-                                    </button>
-                                    
-                                    <button type="button" class="btn btn-outline-success" id="btn-videollamada" title="Iniciar videollamada">
-                                        <i class="fa fa-phone"></i>
                                     </button>
                                     
                                     <button type="submit" class="btn btn-primary">
@@ -160,6 +164,76 @@
     </div>
 </div>
 
+<!-- Modal de información del grupo -->
+<div class="modal fade" id="modalInfoGrupo" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">
+                    <i class="fa fa-info-circle me-2"></i>Información del Grupo
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-4 text-center">
+                        <div class="w-20 h-20 bg-primary rounded-circle d-inline-flex align-items-center justify-content-center text-white text-3xl font-bold mb-3">
+                            {{ substr($chat->nombre, 0, 1) }}
+                        </div>
+                        <h4 class="mb-1">{{ $chat->nombre }}</h4>
+                        @if($chat->descripcion)
+                            <p class="text-muted">{{ $chat->descripcion }}</p>
+                            @endif
+                    </div>
+                    <div class="col-md-8">
+                        <h5>Miembros ({{ $chat->contarMiembros() }})</h5>
+                        <div class="row">
+                    @foreach($chat->usuarios as $miembro)
+                                <div class="col-md-6 mb-3">
+                                    <div class="d-flex align-items-center">
+                                        <div class="w-10 h-10 bg-secondary rounded-circle d-flex align-items-center justify-content-center text-white font-semibold me-3">
+                                {{ substr($miembro->nombre, 0, 1) }}
+                            </div>
+                                        <div>
+                                            <div class="fw-bold">{{ $miembro->nombre }} {{ $miembro->apellido }}</div>
+                                    @if($miembro->id == $chat->creador_id)
+                                                <small class="text-warning">Creador</small>
+                                    @elseif($chat->esAdministrador($miembro->id))
+                                                <small class="text-primary">Administrador</small>
+                                            @else
+                                                <small class="text-muted">Miembro</small>
+                                @endif
+                                        </div>
+                                    </div>
+                                </div>
+                            @endforeach
+                            </div>
+                            
+                        @if($chat->esAdministrador(session('registro_id')))
+                            <hr>
+                            <div class="d-flex gap-2">
+                                <a href="{{ route('chat.grupo.edit', $chat->id) }}" class="btn btn-outline-primary btn-sm">
+                                    <i class="fa fa-edit"></i> Editar Grupo
+                                </a>
+                                @if($chat->creador_id != session('registro_id'))
+                                    <form action="{{ route('chat.grupo.abandonar', $chat->id) }}" method="POST" class="d-inline">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="btn btn-outline-danger btn-sm"
+                                                onclick="return confirm('¿Estás seguro de que quieres abandonar este grupo?')">
+                                            <i class="fa fa-sign-out-alt"></i> Abandonar
+                                        </button>
+                                    </form>
+                                @endif
+                                </div>
+                            @endif
+                        </div>
+                </div>
+            </div>
+        </div>
+                </div>
+            </div>
+
 <div class="modal fade" id="modalVideo" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
@@ -188,52 +262,6 @@
     </div>
 </div>
 
-<div class="modal fade" id="modalVideollamada" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
-    <div class="modal-dialog modal-xl">
-        <div class="modal-content">
-            <div class="modal-header bg-success text-white">
-                <h5 class="modal-title">
-                    <i class="fa fa-phone me-2"></i>Videollamada
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" id="btn-cerrar-videollamada"></button>
-            </div>
-            <div class="modal-body p-0">
-                <div class="row g-0">
-                    <div class="col-md-8">
-                        <div class="position-relative" style="height: 400px; background: #000;">
-                            <video id="video-remoto" class="w-100 h-100" autoplay playsinline style="object-fit: cover;"></video>
-                            <div id="estado-videollamada" class="position-absolute top-50 start-50 translate-middle text-white text-center" style="display: none;">
-                                <i class="fa fa-spinner fa-spin fa-3x mb-3"></i>
-                                <h5>Conectando...</h5>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="position-relative" style="height: 200px; background: #000;">
-                            <video id="video-local" class="w-100 h-100" autoplay muted playsinline style="object-fit: cover;"></video>
-                        </div>
-                        <div class="p-3">
-                            <div class="d-flex justify-content-center gap-2 mb-3">
-                                <button type="button" class="btn btn-outline-light" id="btn-toggle-audio" title="Silenciar/Activar micrófono">
-                                    <i class="fa fa-microphone"></i>
-                                </button>
-                                <button type="button" class="btn btn-outline-light" id="btn-toggle-video" title="Activar/Desactivar cámara">
-                                    <i class="fa fa-video-camera"></i>
-                                </button>
-                                <button type="button" class="btn btn-danger" id="btn-colgar" title="Colgar">
-                                    <i class="fa fa-phone"></i>
-                                </button>
-                            </div>
-                            <div class="text-center">
-                                <small class="text-muted" id="tiempo-videollamada">00:00</small>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
 
 <style>
 .chat-messages {
@@ -280,6 +308,12 @@
     color: #333;
     border: 1px solid #e9ecef;
     border-bottom-left-radius: 4px;
+}
+
+.message-sender {
+    font-size: 0.8rem;
+    margin-bottom: 4px;
+    opacity: 0.8;
 }
 
 .message-text {
@@ -715,7 +749,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             
-            videoCall = new VideoCall({{ $chat->id }}, {{ $usuario->id ?? 'null' }});
+            videoCall = new VideoCall({{ $chat->id }}, {{ session('registro_id') ?? 'null' }});
             
         } catch (error) {
             return;

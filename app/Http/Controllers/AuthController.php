@@ -31,16 +31,23 @@ class AuthController extends Controller
         // Buscar usuario por correo
         $usuario = Registro::where('correo', $request->correo)->first();
 
-        if ($usuario && $usuario->contrasena === $request->contrasena) {
+        if ($usuario && Hash::check($request->contrasena, $usuario->contrasena)) {
             // Login exitoso
             session([
                 'registro_id' => $usuario->id,
                 'usuario_registrado' => $usuario->nombre,
-                'usuario_logueado' => true
+                'usuario_logueado' => true,
+                'es_admin' => $usuario->es_admin
             ]);
 
-            return Redirect::route('quinielas.index')
-                ->with('success', '¡Bienvenido ' . $usuario->nombre . '!');
+            // Redirigir según el tipo de usuario
+            if ($usuario->es_admin) {
+                return Redirect::route('admin.encryption')
+                    ->with('success', '¡Bienvenido Administrador!');
+            } else {
+                return Redirect::route('quinielas.index')
+                    ->with('success', '¡Bienvenido ' . $usuario->nombre . '!');
+            }
         }
 
         // Login fallido
@@ -54,7 +61,7 @@ class AuthController extends Controller
      */
     public function logout()
     {
-        session()->forget(['registro_id', 'usuario_registrado', 'usuario_logueado']);
+        session()->forget(['registro_id', 'usuario_registrado', 'usuario_logueado', 'es_admin']);
         
         return Redirect::route('auth.login')
             ->with('success', 'Has cerrado sesión correctamente.');

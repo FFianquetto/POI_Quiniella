@@ -35,7 +35,7 @@ class ChatController extends Controller
     /**
      * Mostrar un chat específico
      */
-    public function show(Chat $chat): View
+    public function show(Chat $chat): View|RedirectResponse
     {
         $usuarioId = session('registro_id');
         
@@ -44,11 +44,17 @@ class ChatController extends Controller
         }
 
         if (!$chat->tieneUsuario($usuarioId)) {
-            return redirect()->route('chats.index')->with('error', 'No tienes acceso a este chat.');
+            return redirect()->route('chat.index')->with('error', 'No tienes acceso a este chat.');
         }
 
         $usuario = Registro::find($usuarioId);
         $mensajes = $chat->mensajes()->with('emisor')->get();
+        
+        // Si es un chat grupal, redirigir a la vista específica de grupo
+        if ($chat->esGrupal()) {
+            return redirect()->route('chat.grupo.show', $chat->id);
+        }
+        
         $otroUsuario = $chat->otroUsuario($usuarioId);
 
         // Marcar mensajes como leídos
@@ -81,7 +87,7 @@ class ChatController extends Controller
 
         $chat = Chat::encontrarOcrearChat($usuarioId, $request->usuario_id);
 
-        return redirect()->route('chats.show', $chat);
+        return redirect()->route('chat.show', $chat);
     }
 
     /**

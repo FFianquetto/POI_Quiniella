@@ -88,7 +88,7 @@
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="{{ route('chats.index') }}">
+                            <a class="nav-link" href="{{ route('chat.index') }}">
                                 <i class="fas fa-comments me-1"></i> Chats
                             </a>
                         </li>

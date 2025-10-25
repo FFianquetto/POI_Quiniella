@@ -15,8 +15,11 @@
                             {{ __('Mis Chats') }}
                         </span>
                         <div>
-                            <a href="{{ route('chats.buscar') }}" class="btn btn-primary btn-sm">
+                            <a href="{{ route('chat.buscar') }}" class="btn btn-primary btn-sm me-2">
                                 <i class="fa fa-plus"></i> Nuevo Chat
+                            </a>
+                            <a href="{{ route('chat.grupo.create') }}" class="btn btn-success btn-sm">
+                                <i class="fa fa-users"></i> Crear Grupo
                             </a>
                         </div>
                     </div>
@@ -35,13 +38,16 @@
                                     $otroUsuario = $chat->otroUsuario($usuario->id);
                                     $ultimoMensaje = $chat->ultimoMensaje;
                                 @endphp
-                                <a href="{{ route('chats.show', $chat->id) }}" class="list-group-item list-group-item-action">
+                                <a href="{{ $chat->esGrupal() ? route('chat.grupo.show', $chat->id) : route('chat.show', $chat->id) }}" class="list-group-item list-group-item-action">
                                     <div class="d-flex w-100 justify-content-between">
                                         <h6 class="mb-1">
-                                            @if($otroUsuario)
+                                            @if($chat->esGrupal())
+                                                <i class="fa fa-users text-primary me-1"></i>
+                                                {{ $chat->nombre }}
+                                            @elseif($otroUsuario)
                                                 {{ $otroUsuario->nombre }}
                                             @else
-                                                Chat Grupal
+                                                Chat Individual
                                             @endif
                                         </h6>
                                         <small class="text-muted">
@@ -70,8 +76,11 @@
                             <i class="fa fa-comments fa-3x text-muted mb-3"></i>
                             <h5>No tienes chats aún</h5>
                             <p class="text-muted">Comienza una conversación con otros usuarios</p>
-                            <a href="{{ route('chats.buscar') }}" class="btn btn-primary">
+                            <a href="{{ route('chat.buscar') }}" class="btn btn-primary">
                                 <i class="fa fa-plus"></i> Buscar Usuarios
+                            </a>
+                            <a href="{{ route('chat.grupo.create') }}" class="btn btn-success ms-2">
+                                <i class="fa fa-users"></i> Crear Grupo
                             </a>
                         </div>
                     @endif

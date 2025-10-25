@@ -35,7 +35,7 @@
                 <div class="card-header">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <span class="card-title">{{ __('Chats Recientes') }}</span>
-                        <a href="{{ route('chats.index') }}" class="btn btn-primary btn-sm">
+                        <a href="{{ route('chat.index') }}" class="btn btn-primary btn-sm">
                             <i class="fa fa-comments"></i> Ver Todos los Chats
                         </a>
                     </div>
@@ -48,7 +48,7 @@
                                     $otroUsuario = $chat->otroUsuario($usuario->id);
                                     $ultimoMensaje = $chat->ultimoMensaje;
                                 @endphp
-                                <a href="{{ route('chats.show', $chat->id) }}" class="list-group-item list-group-item-action">
+                                <a href="{{ route('chat.show', $chat->id) }}" class="list-group-item list-group-item-action">
                                     <div class="d-flex w-100 justify-content-between">
                                         <h6 class="mb-1">
                                             @if($otroUsuario)
@@ -83,7 +83,7 @@
                             <i class="fa fa-comments fa-3x text-muted mb-3"></i>
                             <h5>No tienes chats aún</h5>
                             <p class="text-muted">Comienza una conversación con otros usuarios</p>
-                            <a href="{{ route('chats.buscar') }}" class="btn btn-primary">
+                            <a href="{{ route('chat.buscar') }}" class="btn btn-primary">
                                 <i class="fa fa-plus"></i> Buscar Usuarios
                             </a>
                         </div>
@@ -136,7 +136,7 @@
                     <a href="{{ route('equipos.index') }}" class="btn btn-success">
                         <i class="fa fa-futbol-o"></i> {{ __('Ver Equipos') }}
                     </a>
-                    <a href="{{ route('chats.buscar') }}" class="btn btn-info">
+                    <a href="{{ route('chat.buscar') }}" class="btn btn-info">
                         <i class="fa fa-user-plus"></i> {{ __('Buscar Usuarios') }}
                     </a>
                 </div>

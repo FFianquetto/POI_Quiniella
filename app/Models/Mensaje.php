@@ -3,9 +3,12 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Traits\HasEncryption;
 
 class Mensaje extends Model
 {
+    use HasEncryption;
+    
     protected $table = 'mensajes';
     
     protected $fillable = [
@@ -21,6 +24,32 @@ class Mensaje extends Model
     protected $casts = [
         'leido' => 'boolean',
     ];
+
+    /**
+     * Boot del modelo para manejar encriptación automática
+     */
+    protected static function boot()
+    {
+        parent::boot();
+
+        // Encriptar antes de guardar
+        static::saving(function ($mensaje) {
+            if ($mensaje->isEncryptionEnabled('messages')) {
+                $mensaje->contenido = $mensaje->encryptValue($mensaje->contenido, 'messages');
+            }
+        });
+    }
+
+    /**
+     * Accessor para desencriptar contenido automáticamente
+     */
+    public function getContenidoAttribute($value)
+    {
+        if ($this->isEncryptionEnabled('messages')) {
+            return $this->decryptValue($value, 'messages');
+        }
+        return $value;
+    }
 
     /**
      * Chat al que pertenece el mensaje

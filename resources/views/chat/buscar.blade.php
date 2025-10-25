@@ -15,7 +15,7 @@
                             {{ __('Buscar Usuarios para Chatear') }}
                         </span>
                         <div>
-                            <a href="{{ route('chats.index') }}" class="btn btn-secondary btn-sm">
+                            <a href="{{ route('chat.index') }}" class="btn btn-secondary btn-sm">
                                 <i class="fa fa-arrow-left"></i> Volver a Chats
                             </a>
                         </div>
@@ -37,7 +37,7 @@
                                             <p class="card-text">
                                                 <small class="text-muted">Edad: {{ $usuarioBuscar->edad }} años</small>
                                             </p>
-                                            <form action="{{ route('chats.crear') }}" method="POST">
+                                            <form action="{{ route('chat.crear') }}" method="POST">
                                                 @csrf
                                                 <input type="hidden" name="usuario_id" value="{{ $usuarioBuscar->id }}">
                                                 <button type="submit" class="btn btn-primary">

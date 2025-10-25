@@ -26,7 +26,20 @@ class Registro extends Model
 {
     protected $perPage = 20;
 
-    protected $fillable = ['nombre', 'correo', 'contrasena', 'edad'];
+    protected $fillable = ['nombre', 'correo', 'contrasena', 'edad', 'es_admin'];
+
+    /**
+     * Get the attributes that should be cast.
+     *
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'contrasena' => 'hashed',
+            'es_admin' => 'boolean',
+        ];
+    }
 
     /**
      * Chats en los que participa este usuario
@@ -80,5 +93,13 @@ class Registro extends Model
                 $query->where('estado', 'activa');
             })
             ->with('quiniela');
+    }
+
+    /**
+     * Verificar si el usuario es administrador
+     */
+    public function esAdministrador()
+    {
+        return $this->es_admin === true;
     }
 }

@@ -1,0 +1,157 @@
+// Variables de colores de la empresa
+$verde-principal: #2E7D32;
+$verde-claro: #4CAF50;
+$verde-muy-claro: #C8E6C9;
+$verde-fondo: #E8F5E8;
+$verde-hover: #1B5E20;
+$verde-borde: #66BB6A;
+$blanco: #FFFFFF;
+$gris-claro: #F5F5F5;
+$gris-texto: #424242;
+$sombra-verde: rgba(46, 125, 50, 0.2);
+$sombra-hover: rgba(46, 125, 50, 0.3);
+
+// Botón principal (Crear Grupo)
+.btn-principal {
+    background: linear-gradient(135deg, $verde-principal 0%, $verde-claro 100%);
+    color: $blanco;
+    border: none;
+    border-radius: 8px;
+    padding: 12px 24px;
+    font-weight: 600;
+    font-size: 16px;
+    min-width: 150px;
+    position: relative;
+    z-index: 10;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px $sombra-verde;
+    cursor: pointer;
+    
+    &:hover:not(:disabled) {
+        background: linear-gradient(135deg, $verde-hover 0%, $verde-principal 100%);
+        transform: translateY(-2px) scale(1.02);
+        box-shadow: 0 8px 25px $sombra-hover;
+    }
+    
+    &:active:not(:disabled) {
+        transform: translateY(0) scale(0.98);
+        box-shadow: 0 2px 8px $sombra-verde;
+    }
+    
+    &:disabled {
+        background: linear-gradient(135deg, #BDBDBD 0%, #E0E0E0 100%);
+        color: #9E9E9E;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+    
+    i {
+        margin-right: 8px;
+    }
+}
+
+// Botón secundario (Cancelar)
+.btn-secundario {
+    background: $verde-fondo;
+    color: $verde-principal;
+    border: 2px solid $verde-borde;
+    border-radius: 8px;
+    padding: 12px 24px;
+    font-weight: 600;
+    font-size: 16px;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    
+    &:hover {
+        background: $verde-muy-claro;
+        border-color: $verde-claro;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px $sombra-verde;
+    }
+    
+    &:active {
+        transform: translateY(0);
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+    }
+    
+    i {
+        margin-right: 8px;
+    }
+}
+
+// Contenedor de botones
+.botones-container {
+    display: flex;
+    justify-content: flex-end;
+    gap: 16px;
+    margin-top: 32px;
+    position: relative;
+    z-index: 10;
+}
+
+// Estados especiales
+.btn-principal.loading {
+    position: relative;
+    color: transparent;
+    
+    &::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 20px;
+        height: 20px;
+        margin: -10px 0 0 -10px;
+        border: 2px solid transparent;
+        border-top: 2px solid $blanco;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+// Responsive
+@media (max-width: 640px) {
+    .botones-container {
+        flex-direction: column;
+        gap: 12px;
+    }
+    
+    .btn-principal,
+    .btn-secundario {
+        width: 100%;
+        justify-content: center;
+    }
+}
+
+// Variantes de tamaño
+.btn-principal.small {
+    padding: 8px 16px;
+    font-size: 14px;
+    min-width: 120px;
+}
+
+.btn-principal.large {
+    padding: 16px 32px;
+    font-size: 18px;
+    min-width: 180px;
+}
+
+.btn-secundario.small {
+    padding: 8px 16px;
+    font-size: 14px;
+}
+
+.btn-secundario.large {
+    padding: 16px 32px;
+    font-size: 18px;
+}
