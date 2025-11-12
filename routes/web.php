@@ -11,7 +11,6 @@ use App\Http\Controllers\AdminController;
 use App\Http\Controllers\ComentarioController;
 use App\Http\Controllers\TorneoController;
 use App\Http\Controllers\ChatGrupoController;
-use App\Http\Controllers\EncryptionController;
 
 Route::get('/', function () {
     return redirect()->route('auth.login');
@@ -48,12 +47,6 @@ Route::prefix('admin')->group(function () {
     Route::post('/quinielas/{quiniela}/resultado', [AdminController::class, 'definirResultado'])->name('admin.quinielas.resultado');
     Route::post('/quinielas/crear', [AdminController::class, 'crearQuiniela'])->name('admin.quinielas.crear');
     
-    // Rutas para configuración de encriptación (protegidas con middleware admin)
-    Route::middleware('admin')->group(function () {
-        Route::get('/encryption', [EncryptionController::class, 'index'])->name('admin.encryption');
-        Route::put('/encryption', [EncryptionController::class, 'update'])->name('admin.encryption.update');
-        Route::post('/encryption/migrate', [EncryptionController::class, 'migrate'])->name('admin.encryption.migrate');
-    });
 });
 
 // Rutas para el sistema de chats
@@ -62,6 +55,7 @@ Route::get('/chats/buscar', [ChatController::class, 'buscarUsuarios'])->name('ch
 Route::get('/chats/{chat}', [ChatController::class, 'show'])->name('chat.show');
 Route::post('/chats/crear', [ChatController::class, 'crearChat'])->name('chat.crear');
 Route::post('/chats/{chat}/mensaje', [ChatController::class, 'enviarMensaje'])->name('chat.mensaje');
+Route::get('/chats/pendientes', [ChatController::class, 'recibirPendientes'])->name('chat.pendientes');
 
 // Rutas para chats grupales
 Route::prefix('chat/grupo')->name('chat.grupo.')->group(function () {
@@ -74,6 +68,8 @@ Route::prefix('chat/grupo')->name('chat.grupo.')->group(function () {
     Route::post('/{id}/remover-miembros', [ChatGrupoController::class, 'removerMiembros'])->name('remover-miembros');
     Route::post('/{id}/promover-admin', [ChatGrupoController::class, 'promoverAdministrador'])->name('promover-admin');
     Route::post('/{id}/degradar-admin', [ChatGrupoController::class, 'degradarAdministrador'])->name('degradar-admin');
+    Route::post('/{id}/tareas', [ChatGrupoController::class, 'crearTarea'])->name('tareas.crear');
+    Route::post('/{chat}/tareas/{tarea}/completar', [ChatGrupoController::class, 'completarTarea'])->name('tareas.completar');
     Route::delete('/{id}/abandonar', [ChatGrupoController::class, 'abandonar'])->name('abandonar');
 });
 

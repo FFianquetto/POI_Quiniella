@@ -35,6 +35,14 @@ class Chat extends Model
     }
 
     /**
+     * Tareas asociadas al chat grupal
+     */
+    public function tareas()
+    {
+        return $this->hasMany(ChatGrupoTarea::class, 'chat_id');
+    }
+
+    /**
      * Último mensaje del chat
      */
     public function ultimoMensaje()

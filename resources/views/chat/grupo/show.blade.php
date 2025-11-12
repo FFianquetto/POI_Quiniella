@@ -160,6 +160,129 @@
                     </form>
                 </div>
             </div>
+
+            @php
+                $tareasPendientes = $tareasPendientes ?? collect();
+                $tareasCompletadas = $tareasCompletadas ?? collect();
+            @endphp
+
+            <div class="card mt-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fa fa-tasks me-2"></i>Tareas del grupo
+                    </h5>
+                </div>
+                <div class="card-body">
+                    @if ($errors->any())
+                        <div class="alert alert-danger">
+                            <ul class="mb-0">
+                                @foreach ($errors->all() as $error)
+                                    <li>{{ $error }}</li>
+                                @endforeach
+                            </ul>
+                        </div>
+                    @endif
+
+                    @if (session('success'))
+                        <div class="alert alert-success">
+                            {{ session('success') }}
+                        </div>
+                    @endif
+
+                    @if (session('info'))
+                        <div class="alert alert-info">
+                            {{ session('info') }}
+                        </div>
+                    @endif
+
+                    <form action="{{ route('chat.grupo.tareas.crear', $chat->id) }}" method="POST" class="mb-4">
+                        @csrf
+                        <div class="row g-3 align-items-end">
+                            <div class="col-md-4">
+                                <label class="form-label">Título</label>
+                                <input type="text" name="titulo" class="form-control" placeholder="Nueva tarea" required value="{{ old('titulo') }}">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Asignar a</label>
+                                <select name="asignado_a" class="form-select">
+                                    <option value="">Sin asignar</option>
+                                    @foreach($chat->usuarios as $miembro)
+                                        <option value="{{ $miembro->id }}" @selected(old('asignado_a') == $miembro->id)>{{ $miembro->nombre }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-md-12">
+                                <label class="form-label">Descripción</label>
+                                <textarea name="descripcion" class="form-control" rows="2" placeholder="Detalles adicionales (opcional)">{{ old('descripcion') }}</textarea>
+                            </div>
+                            <div class="col-md-12">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fa fa-plus-circle me-1"></i> Crear tarea
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+
+                    <div class="row">
+                        <div class="col-md-12">
+                            <h6 class="text-uppercase text-muted">Pendientes</h6>
+                            @forelse($tareasPendientes as $tarea)
+                                <div class="border rounded p-3 mb-3">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div>
+                                            <strong>{{ $tarea->titulo }}</strong>
+                                            <div class="text-muted small">
+                                                Creada por {{ optional($tarea->creador)->nombre ?? 'N/D' }} · {{ $tarea->created_at?->diffForHumans() }}
+                                            </div>
+                                            @if($tarea->descripcion)
+                                                <p class="mb-2 mt-2">{{ $tarea->descripcion }}</p>
+                                            @endif
+                                            <div class="small">
+                                                @if($tarea->asignadoA)
+                                                    <span class="badge bg-info text-dark">Asignada a {{ $tarea->asignadoA->nombre }}</span>
+                                                @else
+                                                    <span class="badge bg-secondary">Sin asignar</span>
+                                                @endif
+                                            </div>
+                                        </div>
+                                        <form action="{{ route('chat.grupo.tareas.completar', [$chat->id, $tarea->id]) }}" method="POST">
+                                            @csrf
+                                            <button type="submit" class="btn btn-success btn-sm">
+                                                <i class="fa fa-check"></i> Completar
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                            @empty
+                                <p class="text-muted">No hay tareas pendientes.</p>
+                            @endforelse
+                        </div>
+                    </div>
+
+                    <div class="row mt-4">
+                        <div class="col-md-12">
+                            <h6 class="text-uppercase text-muted">Completadas</h6>
+                            @forelse($tareasCompletadas as $tarea)
+                                <div class="border rounded p-3 mb-2 bg-light">
+                                    <div class="d-flex justify-content-between">
+                                        <div>
+                                            <strong class="text-decoration-line-through">{{ $tarea->titulo }}</strong>
+                                            <div class="text-muted small">
+                                                Completada por {{ optional($tarea->completadoPor)->nombre ?? 'N/D' }}
+                                                @if($tarea->completado_at)
+                                                    · {{ $tarea->completado_at->diffForHumans() }}
+                                                @endif
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            @empty
+                                <p class="text-muted">Aún no hay tareas completadas.</p>
+                            @endforelse
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>

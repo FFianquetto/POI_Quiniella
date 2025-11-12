@@ -39,17 +39,19 @@
                                     $ultimoMensaje = $chat->ultimoMensaje;
                                 @endphp
                                 <a href="{{ $chat->esGrupal() ? route('chat.grupo.show', $chat->id) : route('chat.show', $chat->id) }}" class="list-group-item list-group-item-action">
-                                    <div class="d-flex w-100 justify-content-between">
-                                        <h6 class="mb-1">
-                                            @if($chat->esGrupal())
-                                                <i class="fa fa-users text-primary me-1"></i>
-                                                {{ $chat->nombre }}
-                                            @elseif($otroUsuario)
-                                                {{ $otroUsuario->nombre }}
-                                            @else
-                                                Chat Individual
-                                            @endif
-                                        </h6>
+                                    <div class="d-flex w-100 justify-content-between flex-wrap gap-2">
+                                        <div class="d-flex align-items-center gap-2">
+                                            <h6 class="mb-0">
+                                                @if($chat->esGrupal())
+                                                    <i class="fa fa-users text-primary me-1"></i>
+                                                    {{ $chat->nombre }}
+                                                @elseif($otroUsuario)
+                                                    {{ $otroUsuario->nombre }}
+                                                @else
+                                                    Chat Individual
+                                                @endif
+                                            </h6>
+                                        </div>
                                         <small class="text-muted">
                                             @if($ultimoMensaje)
                                                 {{ $ultimoMensaje->created_at->diffForHumans() }}

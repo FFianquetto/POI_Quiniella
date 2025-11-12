@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Chat;
+use App\Models\ChatGrupoTarea;
 use App\Models\Registro;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
@@ -84,8 +85,16 @@ class ChatGrupoController extends Controller
             return redirect()->route('auth.login');
         }
         
-        $chat = Chat::with(['usuarios', 'administradores', 'creador', 'mensajes.emisor'])
-                   ->findOrFail($id);
+        $chat = Chat::with([
+                        'usuarios',
+                        'administradores',
+                        'creador',
+                        'mensajes.emisor',
+                        'tareas.asignadoA',
+                        'tareas.creador',
+                        'tareas.completadoPor',
+                    ])
+                    ->findOrFail($id);
 
         if (!$chat->esGrupal()) {
             abort(404);
@@ -101,7 +110,15 @@ class ChatGrupoController extends Controller
             ->where('leido', false)
             ->update(['leido' => true]);
 
-        return view('chat.grupo.show', compact('chat'));
+        $tareasPendientes = $chat->tareas
+            ->where('estado', ChatGrupoTarea::ESTADO_PENDIENTE)
+            ->sortBy('created_at');
+
+        $tareasCompletadas = $chat->tareas
+            ->where('estado', ChatGrupoTarea::ESTADO_COMPLETADA)
+            ->sortByDesc('completado_at');
+
+        return view('chat.grupo.show', compact('chat', 'tareasPendientes', 'tareasCompletadas'));
     }
 
     /**
@@ -374,5 +391,85 @@ class ChatGrupoController extends Controller
 
         return redirect()->route('chat.index')
             ->with('success', 'Has abandonado el grupo');
+    }
+
+    /**
+     * Crear una tarea dentro del grupo
+     */
+    public function crearTarea(Request $request, $id)
+    {
+        $usuarioId = session('registro_id');
+
+        if (!$usuarioId) {
+            return redirect()->route('auth.login');
+        }
+
+        $chat = Chat::with('usuarios')->findOrFail($id);
+
+        if (!$chat->esGrupal() || !$chat->tieneUsuario($usuarioId)) {
+            abort(403);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'titulo' => 'required|string|max:255',
+            'descripcion' => 'nullable|string|max:2000',
+            'asignado_a' => 'nullable|exists:registros,id',
+        ], [
+            'titulo.required' => 'El título de la tarea es obligatorio.',
+            'titulo.max' => 'El título no puede exceder 255 caracteres.',
+            'descripcion.max' => 'La descripción no puede exceder 2000 caracteres.',
+            'asignado_a.exists' => 'El usuario seleccionado no es válido.',
+        ]);
+
+        if ($validator->fails()) {
+            return redirect()->back()
+                ->withErrors($validator)
+                ->withInput();
+        }
+
+        if ($request->filled('asignado_a') && !$chat->usuarios->contains('id', $request->asignado_a)) {
+            return redirect()->back()
+                ->withErrors(['asignado_a' => 'El usuario asignado debe ser miembro del grupo.'])
+                ->withInput();
+        }
+
+        $chat->tareas()->create([
+            'titulo' => $request->titulo,
+            'descripcion' => $request->descripcion,
+            'creado_por' => $usuarioId,
+            'asignado_a' => $request->asignado_a,
+            'estado' => ChatGrupoTarea::ESTADO_PENDIENTE,
+        ]);
+
+        return redirect()->back()->with('success', 'Tarea creada exitosamente.');
+    }
+
+    /**
+     * Marcar una tarea como completada
+     */
+    public function completarTarea(Request $request, $chatId, $tareaId)
+    {
+        $usuarioId = session('registro_id');
+
+        if (!$usuarioId) {
+            return redirect()->route('auth.login');
+        }
+
+        $chat = Chat::with('usuarios')->findOrFail($chatId);
+
+        if (!$chat->esGrupal() || !$chat->tieneUsuario($usuarioId)) {
+            abort(403);
+        }
+
+        $tarea = $chat->tareas()->findOrFail($tareaId);
+
+        if ($tarea->estaCompletada()) {
+            return redirect()->back()->with('info', 'La tarea ya fue completada.');
+        }
+
+        // Permitimos completar a cualquier miembro del grupo
+        $tarea->marcarComoCompletada($usuarioId);
+
+        return redirect()->back()->with('success', 'Tarea marcada como completada.');
     }
 }

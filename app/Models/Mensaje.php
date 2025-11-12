@@ -3,12 +3,10 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use App\Traits\HasEncryption;
+use Illuminate\Support\Str;
 
 class Mensaje extends Model
 {
-    use HasEncryption;
-    
     protected $table = 'mensajes';
     
     protected $fillable = [
@@ -18,37 +16,54 @@ class Mensaje extends Model
         'tipo',
         'archivo_url',
         'archivo_nombre',
-        'leido'
+        'leido',
+        'entregado',
+        'entregado_at',
     ];
 
     protected $casts = [
         'leido' => 'boolean',
+        'entregado' => 'boolean',
+        'entregado_at' => 'datetime',
     ];
 
     /**
-     * Boot del modelo para manejar encriptación automática
+     * Mutador: encripta el contenido antes de almacenarlo
      */
-    protected static function boot()
+    public function setContenidoAttribute($value): void
     {
-        parent::boot();
+        if (!$this->shouldEncrypt() || is_null($value) || $value === '') {
+            $this->attributes['contenido'] = $value;
+            return;
+        }
 
-        // Encriptar antes de guardar
-        static::saving(function ($mensaje) {
-            if ($mensaje->isEncryptionEnabled('messages')) {
-                $mensaje->contenido = $mensaje->encryptValue($mensaje->contenido, 'messages');
-            }
-        });
+        $encrypted = $this->encryptValue($value);
+
+        $this->attributes['contenido'] = $encrypted ?? $value;
     }
 
     /**
-     * Accessor para desencriptar contenido automáticamente
+     * Accessor: desencripta el contenido al acceder
      */
     public function getContenidoAttribute($value)
     {
-        if ($this->isEncryptionEnabled('messages')) {
-            return $this->decryptValue($value, 'messages');
+        if (!$this->shouldEncrypt() || is_null($value) || $value === '') {
+            return $value;
         }
-        return $value;
+
+        try {
+            $decrypted = $this->decryptValue($value);
+
+            return $decrypted ?? $value;
+        } catch (\Throwable $exception) {
+            $messageId = $this->attributes['id'] ?? 'desconocido';
+
+            \Log::warning("No se pudo desencriptar el contenido del mensaje ID {$messageId}", [
+                'exception' => $exception->getMessage(),
+            ]);
+
+            return $value;
+        }
     }
 
     /**
@@ -73,6 +88,16 @@ class Mensaje extends Model
     public function marcarComoLeido()
     {
         $this->leido = true;
+        $this->save();
+    }
+
+    /**
+     * Marcar mensaje como entregado
+     */
+    public function marcarComoEntregado(): void
+    {
+        $this->entregado = true;
+        $this->entregado_at = now();
         $this->save();
     }
 
@@ -104,5 +129,77 @@ class Mensaje extends Model
             return pathinfo($this->archivo_nombre, PATHINFO_FILENAME);
         }
         return null;
+    }
+
+    /**
+     * Determina si debemos encriptar el contenido
+     */
+    protected function shouldEncrypt(): bool
+    {
+        return (bool) config('chat.encryption.enabled', true);
+    }
+
+    /**
+     * Obtiene la clave de encriptación normalizada a 32 bytes
+     */
+    protected function getEncryptionKey(): string
+    {
+        $rawKey = config('chat.encryption.key', config('app.key'));
+
+        if (!$rawKey) {
+            throw new \RuntimeException('No se ha definido una clave de encriptación para el chat.');
+        }
+
+        if (Str::startsWith($rawKey, 'base64:')) {
+            $rawKey = base64_decode(substr($rawKey, 7));
+        }
+
+        return hash('sha256', $rawKey, true);
+    }
+
+    /**
+     * Obtiene el cifrado configurado
+     */
+    protected function getCipher(): string
+    {
+        $cipher = config('chat.encryption.cipher', 'AES-256-ECB');
+
+        return strtoupper($cipher);
+    }
+
+    /**
+     * Encripta un valor textual usando OpenSSL y lo codifica en Base64
+     */
+    protected function encryptValue(string $value): ?string
+    {
+        $cipher = $this->getCipher();
+        $key = $this->getEncryptionKey();
+
+        $encrypted = openssl_encrypt($value, $cipher, $key, OPENSSL_RAW_DATA);
+
+        if ($encrypted === false) {
+            return null;
+        }
+
+        return base64_encode($encrypted);
+    }
+
+    /**
+     * Desencripta un valor previamente encriptado con encryptValue
+     */
+    protected function decryptValue(string $value): ?string
+    {
+        $cipher = $this->getCipher();
+        $key = $this->getEncryptionKey();
+
+        $decoded = base64_decode($value, true);
+
+        if ($decoded === false) {
+            return null;
+        }
+
+        $decrypted = openssl_decrypt($decoded, $cipher, $key, OPENSSL_RAW_DATA);
+
+        return $decrypted === false ? null : $decrypted;
     }
 }

@@ -63,6 +63,15 @@ class ChatController extends Controller
             ->where('leido', false)
             ->update(['leido' => true]);
 
+        // Marcar mensajes como entregados
+        $chat->mensajes()
+            ->where('registro_id_emisor', '!=', $usuarioId)
+            ->where('entregado', false)
+            ->update([
+                'entregado' => true,
+                'entregado_at' => now(),
+            ]);
+
         return view('chat.show', compact('chat', 'mensajes', 'usuario', 'otroUsuario'));
     }
 
@@ -116,6 +125,8 @@ class ChatController extends Controller
             'registro_id_emisor' => $usuarioId,
             'contenido' => $request->contenido ?? '',
             'tipo' => $request->tipo ?? 'texto',
+            'leido' => false,
+            'entregado' => false,
         ];
 
         // Manejar archivo subido
@@ -233,5 +244,62 @@ class ChatController extends Controller
             'success' => true,
             'mensaje' => 'Señalización procesada'
         ]);
+    }
+
+    /**
+     * Obtener mensajes pendientes para el usuario (modo nube)
+     */
+    public function recibirPendientes(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $usuarioId = session('registro_id');
+
+        if (!$usuarioId) {
+            return response()->json(['error' => 'No autenticado'], 401);
+        }
+
+        $mensajesPendientes = Mensaje::with(['chat', 'emisor'])
+            ->where('entregado', false)
+            ->where('registro_id_emisor', '!=', $usuarioId)
+            ->whereHas('chat', function ($query) use ($usuarioId) {
+                $query->whereHas('usuarios', function ($subQuery) use ($usuarioId) {
+                    $subQuery->where('registro_id', $usuarioId);
+                });
+            })
+            ->orderBy('created_at', 'asc')
+            ->get();
+
+        $ahora = now();
+
+        if ($mensajesPendientes->isNotEmpty()) {
+            Mensaje::whereIn('id', $mensajesPendientes->pluck('id'))
+                ->update([
+                    'entregado' => true,
+                    'entregado_at' => $ahora,
+                ]);
+
+            $mensajesPendientes->each(function (Mensaje $mensaje) use ($ahora) {
+                $mensaje->entregado = true;
+                $mensaje->entregado_at = $ahora;
+            });
+        }
+
+        $data = $mensajesPendientes->map(function (Mensaje $mensaje) {
+            return [
+                'id' => $mensaje->id,
+                'chat_id' => $mensaje->chat_id,
+                'contenido' => $mensaje->contenido,
+                'tipo' => $mensaje->tipo,
+                'archivo_url' => $mensaje->archivo_url,
+                'archivo_nombre' => $mensaje->archivo_nombre,
+                'creado_en' => optional($mensaje->created_at)->toIso8601String(),
+                'entregado_en' => optional($mensaje->entregado_at)->toIso8601String(),
+                'emisor' => [
+                    'id' => optional($mensaje->emisor)->id,
+                    'nombre' => optional($mensaje->emisor)->nombre,
+                ],
+            ];
+        });
+
+        return response()->json(['data' => $data]);
     }
 }

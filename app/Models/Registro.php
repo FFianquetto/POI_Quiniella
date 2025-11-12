@@ -26,7 +26,13 @@ class Registro extends Model
 {
     protected $perPage = 20;
 
-    protected $fillable = ['nombre', 'correo', 'contrasena', 'edad', 'es_admin'];
+    protected $fillable = [
+        'nombre',
+        'correo',
+        'contrasena',
+        'edad',
+        'es_admin',
+    ];
 
     /**
      * Get the attributes that should be cast.
@@ -36,7 +42,6 @@ class Registro extends Model
     protected function casts(): array
     {
         return [
-            'contrasena' => 'hashed',
             'es_admin' => 'boolean',
         ];
     }

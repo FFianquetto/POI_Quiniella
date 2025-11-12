@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\Registro;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\View\View;
 
@@ -31,23 +30,23 @@ class AuthController extends Controller
         // Buscar usuario por correo
         $usuario = Registro::where('correo', $request->correo)->first();
 
-        if ($usuario && Hash::check($request->contrasena, $usuario->contrasena)) {
+        if ($usuario && $usuario->contrasena === $request->contrasena) {
             // Login exitoso
             session([
                 'registro_id' => $usuario->id,
                 'usuario_registrado' => $usuario->nombre,
                 'usuario_logueado' => true,
-                'es_admin' => $usuario->es_admin
+                'es_admin' => $usuario->es_admin,
             ]);
 
             // Redirigir según el tipo de usuario
             if ($usuario->es_admin) {
-                return Redirect::route('admin.encryption')
+                return Redirect::route('admin.dashboard')
                     ->with('success', '¡Bienvenido Administrador!');
-            } else {
-                return Redirect::route('quinielas.index')
-                    ->with('success', '¡Bienvenido ' . $usuario->nombre . '!');
             }
+
+            return Redirect::route('quinielas.index')
+                ->with('success', '¡Bienvenido ' . $usuario->nombre . '!');
         }
 
         // Login fallido

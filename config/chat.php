@@ -42,4 +42,11 @@ return [
         'sound' => true,
         'desktop' => true,
     ],
+
+    // Configuración de encriptación de mensajes
+    'encryption' => [
+        'enabled' => env('CHAT_ENCRYPTION_ENABLED', true),
+        'key' => env('CHAT_ENCRYPTION_KEY', env('APP_KEY')),
+        'cipher' => env('CHAT_ENCRYPTION_CIPHER', 'AES-256-ECB'),
+    ],
 ];
