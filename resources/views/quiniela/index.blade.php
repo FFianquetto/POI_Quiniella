@@ -31,16 +31,6 @@
         </div>
     </div>
 
-    <div class="hinche-placeholder text-center py-4 mb-4">
-        <div class="hinche-card mx-auto">
-            <i class="fas fa-trophy mb-3 fa-2x text-success"></i>
-            <h5 class="fw-bold mb-2">En breve tendrás nuevas quinielas</h5>
-            <p class="text-muted mb-0">
-                Estamos preparando enfrentamientos frescos para tus apuestas. Mientras tanto, utiliza la sección de apuestas mundialistas para practicar tus predicciones.
-            </p>
-        </div>
-    </div>
-
     @if($worldCupMatches->isNotEmpty())
     <div class="row mt-4">
         <div class="col-sm-12">
@@ -49,7 +39,7 @@
                     <div class="d-flex justify-content-between align-items-center">
                         <span id="worldCupCardTitle">
                             <i class="fas fa-globe-americas me-2"></i>
-                            Apuestas del Mundial 2026
+                            Quinielas del Mundial 2026
                         </span>
                         <span class="badge bg-warning text-dark">
                             No hay empates: elige ganador directo
@@ -211,6 +201,7 @@
 .mundial-card {
     border-radius: 22px;
     box-shadow: 0 18px 32px rgba(46, 125, 50, 0.2);
+    margin-bottom: 3rem;
 }
 
 .mundial-table thead {
@@ -249,10 +240,18 @@
 
 .winner-option {
     position: relative;
+    display: inline-flex;
 }
 
 .winner-option .winner-radio {
-    display: none;
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+    left: -9999px;
+    margin: 0;
+    appearance: none;
+    outline: none;
+    box-shadow: none;
 }
 
 .winner-option .winner-btn {

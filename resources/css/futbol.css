@@ -545,19 +545,89 @@ footer:hover::before {
     border: 1px solid rgba(255, 255, 255, 0.14);
 }
 
-.world-cup-team-summary {
-    background: rgba(255, 255, 255, 0.18);
-    border-radius: 18px;
-    padding: 18px 20px;
-    border: 1px solid rgba(255, 255, 255, 0.22);
-    box-shadow: 0 10px 20px rgba(46, 125, 50, 0.18);
+.tournament-select {
+    color: #122818 !important;
+    background-color: rgba(255, 255, 255, 0.95) !important;
+    border: 1px solid rgba(18, 40, 24, 0.18) !important;
+    border-radius: 16px !important;
+    font-weight: 600 !important;
 }
 
-.world-cup-team-summary .summary-label {
-    display: block;
+.tournament-select option {
+    color: #122818 !important;
+    background-color: #ffffff !important;
+}
+
+.btn-compact {
+    padding: 12px 24px !important;
+    font-size: 0.95rem !important;
+}
+
+.btn-wide {
+    padding: 14px 36px !important;
+    font-size: 1rem !important;
+}
+
+@media (min-width: 992px) {
+    #generateTournament {
+        width: auto;
+    }
+}
+
+.tournament-select.is-invalid {
+    border-color: #f0ad4e;
+    box-shadow: 0 0 0 0.25rem rgba(240, 173, 78, 0.35);
+    background-color: rgba(255, 255, 255, 0.98) !important;
+}
+
+#favoriteTeamFeedback {
+    font-weight: 600;
+}
+
+.text-tournament-orange {
+    color: var(--tournament-orange, var(--orange, #FF6B35)) !important;
+}
+
+.selected-team-display {
+    background: rgba(255, 255, 255, 0.16);
+    border-radius: 18px;
+    padding: 14px 20px;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    min-width: 220px;
+}
+
+.selected-team-display .label {
+    font-size: 0.8rem;
+    letter-spacing: 0.03em;
     text-transform: uppercase;
-    letter-spacing: 0.08em;
-    font-size: 0.72rem;
+}
+
+.selected-team-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 999px;
+    padding: 8px 18px;
+    min-width: 140px;
+    justify-content: center;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+}
+
+@media (max-width: 991.98px) {
+    .selected-team-display {
+        width: 100%;
+    }
+
+    .selection-summary {
+        justify-content: center;
+    }
+}
+
+.selection-summary {
+    width: 100%;
+    justify-content: center;
 }
 
 .world-cup-team-card {

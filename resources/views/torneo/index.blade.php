@@ -42,8 +42,8 @@
                     </small>
                 </div>
                 <div class="card-body">
-                    <div class="row g-3 align-items-end">
-                        <div class="col-lg-5 col-md-6">
+                    <div class="row g-3 align-items-center justify-content-center">
+                        <div class="col-xl-4 col-lg-5 col-md-6">
                             <label for="favoriteTeam" class="form-label text-white fw-semibold">
                                 <i class="fas fa-gem me-2"></i>
                                 Selecciona tu equipo favorito
@@ -54,21 +54,25 @@
                                     <option value="{{ $team->code }}">{{ $team->name }} ({{ $team->code }})</option>
                                 @endforeach
                             </select>
+                            <div id="favoriteTeamFeedback" class="form-text text-tournament-orange mt-2 d-none">
+                                Selecciona una selección favorita antes de generar el torneo.
+                            </div>
                             <small class="text-white-50">
                                 Tu favorito determinará las medallas y puntos que obtengas en cada simulación.
                             </small>
                         </div>
-                        <div class="col-lg-4 col-md-6">
-                            <div class="world-cup-team-summary">
-                                <span class="summary-label text-white-50">Total de selecciones</span>
-                                <h5 class="mb-0 text-white">{{ $worldCupTeams->count() }}</h5>
-                                <span class="badge bg-light text-dark fw-semibold mt-2">
-                                    Clasificadas a la Copa Mundial 2026
-                                </span>
+                        <div class="col-xl-4 col-lg-5 col-md-6">
+                            <div class="selection-summary d-flex flex-wrap justify-content-center gap-3">
+                                <div class="selected-team-display" id="selectedTeamDisplay">
+                                    <span class="label text-white-50 d-block mb-1">Favorito seleccionado</span>
+                                    <span class="selected-team-pill text-white-75" data-default="Ninguno">
+                                        Ninguno
+                                    </span>
+                                </div>
                             </div>
                         </div>
-                        <div class="col-lg-3 d-flex justify-content-lg-end justify-content-start">
-                            <button type="button" class="btn tournament-btn btn-generate btn-lg w-100" id="generateTournament">
+                        <div class="col-xl-3 col-lg-3 col-md-6 d-flex justify-content-center justify-content-lg-start">
+                            <button type="button" class="btn tournament-btn btn-generate btn-wide w-100 w-md-auto" id="generateTournament">
                                 <i class="fas fa-play me-2"></i>
                                 Generar Mundial
                             </button>

@@ -42,6 +42,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const bracketContainer = document.getElementById('tournamentBracket');
     const tournamentInfo = document.getElementById('tournamentInfo');
     const favoriteTeamSelect = document.getElementById('favoriteTeam');
+    const favoriteTeamFeedback = document.getElementById('favoriteTeamFeedback');
     const rewardPanel = document.getElementById('rewardPanel');
     const rewardList = document.getElementById('rewardList');
     const rewardMessage = document.getElementById('rewardMessage');
@@ -269,16 +270,31 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function updateFavoriteTeamDisplay() {
-        if (!favoriteTeamLabel) {
-            return;
+        if (favoriteTeamLabel) {
+            if (tournamentData.favoriteTeamCode && tournamentData.favoriteTeamName) {
+                favoriteTeamLabel.textContent = `${tournamentData.favoriteTeamName} (${tournamentData.favoriteTeamCode})`;
+            } else if (tournamentData.favoriteTeamCode) {
+                favoriteTeamLabel.textContent = tournamentData.favoriteTeamCode;
+            } else {
+                favoriteTeamLabel.textContent = 'Sin definir';
+            }
         }
 
-        if (tournamentData.favoriteTeamCode && tournamentData.favoriteTeamName) {
-            favoriteTeamLabel.textContent = `${tournamentData.favoriteTeamName} (${tournamentData.favoriteTeamCode})`;
-        } else if (tournamentData.favoriteTeamCode) {
-            favoriteTeamLabel.textContent = tournamentData.favoriteTeamCode;
-        } else {
-            favoriteTeamLabel.textContent = 'Sin definir';
+        const selectedTeamDisplay = document.getElementById('selectedTeamDisplay');
+        if (selectedTeamDisplay) {
+            const pill = selectedTeamDisplay.querySelector('.selected-team-pill');
+            if (pill) {
+                if (tournamentData.favoriteTeamCode && tournamentData.favoriteTeamName) {
+                    pill.textContent = `${tournamentData.favoriteTeamName} (${tournamentData.favoriteTeamCode})`;
+                    pill.classList.add('bg-success', 'text-white');
+                } else if (tournamentData.favoriteTeamCode) {
+                    pill.textContent = tournamentData.favoriteTeamCode;
+                    pill.classList.add('bg-success', 'text-white');
+                } else {
+                    pill.textContent = 'Selecciona un favorito';
+                    pill.classList.remove('bg-success', 'text-white');
+                }
+            }
         }
     }
 
@@ -296,6 +312,21 @@ document.addEventListener('DOMContentLoaded', function () {
         const favoriteCode = favoriteTeamSelect.value;
         if (!favoriteCode) {
             showNotification('Selecciona tu equipo favorito para activar el sistema de recompensas.', 'warning');
+            favoriteTeamSelect.focus();
+            favoriteTeamSelect.classList.add('is-invalid');
+            if (favoriteTeamFeedback) {
+                favoriteTeamFeedback.classList.remove('d-none');
+            }
+
+            const clearInvalidState = () => {
+                favoriteTeamSelect.classList.remove('is-invalid');
+                if (favoriteTeamFeedback) {
+                    favoriteTeamFeedback.classList.add('d-none');
+                }
+                favoriteTeamSelect.removeEventListener('change', clearInvalidState);
+            };
+
+            favoriteTeamSelect.addEventListener('change', clearInvalidState);
             return;
         }
 
@@ -305,6 +336,10 @@ document.addEventListener('DOMContentLoaded', function () {
         generateBracket(teams, { shuffle: true });
         tournamentData.favoriteTeamCode = favoriteCode;
         tournamentData.favoriteTeamName = favoriteTeam ? favoriteTeam.name : null;
+        favoriteTeamSelect.classList.remove('is-invalid');
+        if (favoriteTeamFeedback) {
+            favoriteTeamFeedback.classList.add('d-none');
+        }
         showTournamentInfo('En Marcha');
         updateFavoriteTeamDisplay();
         resetRewardsPanel();
