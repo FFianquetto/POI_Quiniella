@@ -33,11 +33,16 @@ document.addEventListener('DOMContentLoaded', function () {
         favoriteTeamName: null,
         thirdPlaceMatch: null,
         rewards: createEmptyRewards(),
-        uuid: null
+        uuid: null,
+        status: 'idle'
     };
     let achievementState = loadAchievementState();
 
     const generateBtn = document.getElementById('generateTournament');
+    const tournamentLockMessage = document.getElementById('tournamentLockMessage');
+    const activeTournamentElement = document.getElementById('activeTournamentData');
+    const openSimulatorBtn = document.getElementById('openTournamentSimulator');
+    let hasHydratedInitialTournament = false;
     const clearBtn = document.getElementById('clearTeams');
     const bracketContainer = document.getElementById('tournamentBracket');
     const tournamentInfo = document.getElementById('tournamentInfo');
@@ -77,6 +82,9 @@ document.addEventListener('DOMContentLoaded', function () {
     if (simulateCurrentRoundBtn) {
         simulateCurrentRoundBtn.addEventListener('click', simulateCurrentRound);
     }
+    if (openSimulatorBtn) {
+        openSimulatorBtn.addEventListener('click', () => openCurrentTournament(true));
+    }
     if (shareAchievementsBtn) {
         shareAchievementsBtn.addEventListener('click', shareAchievementProgress);
     }
@@ -105,6 +113,7 @@ document.addEventListener('DOMContentLoaded', function () {
     syncFavoriteOptions();
     updateFavoriteTeamDisplay();
     renderAchievementPanel();
+    hydrateInitialTournament();
 
     function createEmptyRewards() {
         return {
@@ -227,16 +236,40 @@ document.addEventListener('DOMContentLoaded', function () {
                 body: JSON.stringify(payload),
             });
 
+            const responseText = await response.text();
+            let data = null;
+
+            if (responseText) {
+                try {
+                    data = JSON.parse(responseText);
+                } catch (parseError) {
+                    console.warn('No se pudo interpretar la respuesta del torneo', parseError);
+                }
+            }
+
             if (!response.ok) {
+                if (initial && response.status === 409) {
+                    applyServerStatusFromResponse(data, { initial: true, conflict: true });
+                    if (!hasHydratedInitialTournament) {
+                        hydrateInitialTournament();
+                    }
+                    return;
+                }
+
+                if (initial) {
+                    unlockGenerateButton('No se pudo crear el torneo. Intenta nuevamente.');
+                }
+
                 throw new Error(`Sync error (${response.status})`);
             }
 
-            const data = await response.json();
+            applyServerStatusFromResponse(data, { initial });
 
-            if (initial && data.uuid) {
-                tournamentData.uuid = data.uuid;
-            }
+            return data;
         } catch (error) {
+            if (initial) {
+                unlockGenerateButton('No se pudo crear el torneo. Intenta nuevamente.');
+            }
             console.warn('No se pudo sincronizar el torneo:', error);
         }
     }
@@ -298,7 +331,249 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
+    function updateGenerateButtonState({ disabled, message, tone = 'warning' } = {}) {
+        if (!generateBtn) {
+            return;
+        }
+
+        let effectiveDisabled = generateBtn.disabled;
+
+        if (typeof disabled === 'boolean') {
+            generateBtn.disabled = disabled;
+            generateBtn.setAttribute('aria-disabled', disabled ? 'true' : 'false');
+            effectiveDisabled = disabled;
+        }
+
+        if (tournamentLockMessage) {
+            if (message) {
+                tournamentLockMessage.textContent = message;
+                tournamentLockMessage.classList.remove('d-none');
+
+                const toneClass = tone === 'error'
+                    ? 'text-danger'
+                    : tone === 'success'
+                        ? 'text-success'
+                        : 'text-tournament-orange';
+
+                tournamentLockMessage.classList.remove('text-danger', 'text-success', 'text-tournament-orange');
+                tournamentLockMessage.classList.add(toneClass);
+            } else {
+                tournamentLockMessage.classList.add('d-none');
+            }
+        }
+
+        if (openSimulatorBtn) {
+            if (effectiveDisabled) {
+                openSimulatorBtn.classList.remove('d-none');
+            } else {
+                openSimulatorBtn.classList.add('d-none');
+            }
+        }
+    }
+
+    function lockGenerateButton(message) {
+        updateGenerateButtonState({
+            disabled: true,
+            message: message || 'Ya hay un torneo en curso. Finalízalo antes de generar uno nuevo.',
+            tone: 'warning',
+        });
+    }
+
+    function unlockGenerateButton(message) {
+        updateGenerateButtonState({
+            disabled: false,
+            message: message || '',
+            tone: 'success',
+        });
+    }
+
+    function applyServerStatusFromResponse(data, { initial = false, conflict = false } = {}) {
+        if (!data || typeof data !== 'object') {
+            return;
+        }
+
+        if ((initial || !tournamentData.uuid) && data.uuid) {
+            tournamentData.uuid = data.uuid;
+        }
+
+        if (data.status) {
+            tournamentData.status = data.status;
+
+            if (data.status === 'in_progress') {
+                const message = data.message || 'Tienes un Mundial en curso. Completa los partidos pendientes antes de generar otro.';
+                lockGenerateButton(message);
+            } else if (data.status === 'completed') {
+                const message = data.message || 'La última Copa finalizó. Puedes generar una nueva simulación cuando gustes.';
+                unlockGenerateButton(message);
+            }
+        }
+
+        if (conflict && data.message) {
+            showNotification(data.message, 'warning');
+        }
+    }
+
+    function hydrateInitialTournament() {
+        if (hasHydratedInitialTournament) {
+            return;
+        }
+
+        hasHydratedInitialTournament = true;
+
+        if (!activeTournamentElement) {
+            unlockGenerateButton();
+            return;
+        }
+
+        const raw = activeTournamentElement.dataset.tournament;
+
+        if (!raw || raw === 'null' || raw === 'undefined') {
+            unlockGenerateButton();
+            return;
+        }
+
+        let payload = null;
+
+        try {
+            payload = JSON.parse(raw);
+        } catch (error) {
+            console.warn('No se pudo interpretar el torneo activo', error);
+            unlockGenerateButton();
+            return;
+        }
+
+        if (!payload || typeof payload !== 'object') {
+            unlockGenerateButton();
+            return;
+        }
+
+        tournamentData.uuid = payload.uuid || null;
+        tournamentData.favoriteTeamCode = payload.favorite_team || null;
+        tournamentData.status = payload.status || 'in_progress';
+
+        tournamentData.teams = Array.isArray(payload.teams) && payload.teams.length
+            ? payload.teams.map((team, index) => ({
+                ...team,
+                id: team.id ?? index + 1,
+            }))
+            : worldCupTeamsDataset.map((team) => ({ ...team }));
+
+        if (tournamentData.favoriteTeamCode) {
+            const favorite = tournamentData.teams.find((team) => team.code === tournamentData.favoriteTeamCode);
+            tournamentData.favoriteTeamName = favorite ? favorite.name : null;
+        } else {
+            tournamentData.favoriteTeamName = null;
+        }
+
+        tournamentData.rounds = Array.isArray(payload.rounds)
+            ? payload.rounds.map((round, roundIndex) => {
+                const matches = Array.isArray(round.matches)
+                    ? round.matches.map((match, matchIndex) => {
+                        const matchKey = match.match_key || match.id || `round-${roundIndex}-match-${matchIndex}`;
+                        return {
+                            ...match,
+                            id: match.id || matchKey,
+                            match_key: matchKey,
+                            team1: match.team1 || match.team_a || null,
+                            team2: match.team2 || match.team_b || null,
+                            winner: match.winner || null,
+                            played: Boolean(match.played),
+                        };
+                    })
+                    : [];
+
+                return {
+                    name: round.name || ROUND_NAMES[roundIndex] || `Ronda ${roundIndex + 1}`,
+                    matches,
+                };
+            })
+            : [];
+
+        const storedThirdPlace = payload.results?.third_place ?? null;
+        tournamentData.thirdPlaceMatch = storedThirdPlace
+            ? {
+                ...storedThirdPlace,
+                match_key: storedThirdPlace.match_key || storedThirdPlace.id || 'third-place',
+                team1: storedThirdPlace.team1 || storedThirdPlace.team_a || null,
+                team2: storedThirdPlace.team2 || storedThirdPlace.team_b || null,
+                played: Boolean(storedThirdPlace.played),
+            }
+            : null;
+
+        const storedRewards = payload.results?.rewards ?? null;
+        tournamentData.rewards = storedRewards
+            ? {
+                champion: storedRewards.champion || null,
+                runnerUp: storedRewards.runnerUp || storedRewards.runner_up || null,
+                thirdPlace: storedRewards.thirdPlace || storedRewards.third_place || null,
+                fourthPlace: storedRewards.fourthPlace || storedRewards.fourth_place || null,
+            }
+            : createEmptyRewards();
+
+        let currentRoundIndex = 0;
+        let currentMatchIndex = 0;
+        let foundPending = false;
+
+        for (let index = 0; index < tournamentData.rounds.length; index++) {
+            const matches = tournamentData.rounds[index]?.matches ?? [];
+            const pendingIndex = matches.findIndex((match) => !match.played);
+
+            if (pendingIndex !== -1) {
+                currentRoundIndex = index;
+                currentMatchIndex = pendingIndex;
+                foundPending = true;
+                break;
+            }
+        }
+
+        if (!foundPending && tournamentData.rounds.length) {
+            currentRoundIndex = tournamentData.rounds.length - 1;
+            currentMatchIndex = 0;
+        }
+
+        if (tournamentData.thirdPlaceMatch && !tournamentData.thirdPlaceMatch.played) {
+            currentRoundIndex = ROUND_NAMES.length;
+            currentMatchIndex = 0;
+        }
+
+        tournamentData.currentRound = currentRoundIndex;
+        tournamentData.currentMatch = currentMatchIndex;
+
+        if (favoriteTeamSelect && tournamentData.favoriteTeamCode) {
+            favoriteTeamSelect.value = tournamentData.favoriteTeamCode;
+        }
+
+        updateFavoriteTeamDisplay();
+
+        if (tournamentData.rounds.length) {
+            displayBracket();
+            showTournamentInfo(determineTournamentStatus());
+        }
+
+        if (tournamentData.rewards && tournamentData.rewards.champion) {
+            rewardPanel.style.display = 'block';
+            updateRewardsUI();
+        } else {
+            resetRewardsPanel();
+        }
+
+        openCurrentTournament(false);
+
+        if (tournamentData.status === 'completed') {
+            unlockGenerateButton('La última Copa finalizó. Puedes generar una nueva simulación.');
+        } else {
+            lockGenerateButton('Tienes un Mundial en curso. Completa los partidos pendientes antes de generar otro.');
+        }
+    }
+
     function generateTournament() {
+        if (tournamentData.status === 'in_progress') {
+            lockGenerateButton('Ya tienes un Mundial en curso. Finaliza la simulación antes de iniciar otro.');
+            showNotification('Ya existe un torneo activo. Continúa los partidos pendientes o finalízalo.', 'warning');
+            switchToBracketView();
+            return;
+        }
+
         if (!worldCupTeamsDataset.length) {
             showNotification('No hay selecciones registradas para generar el torneo.', 'danger');
             return;
@@ -333,13 +608,28 @@ document.addEventListener('DOMContentLoaded', function () {
         const teams = worldCupTeamsDataset.map(team => ({ ...team }));
         const favoriteTeam = teams.find((team) => team.code === favoriteCode) || null;
 
+        tournamentData = {
+            teams: [],
+            rounds: [],
+            currentRound: 0,
+            currentMatch: 0,
+            favoriteTeamCode: null,
+            favoriteTeamName: null,
+            thirdPlaceMatch: null,
+            rewards: createEmptyRewards(),
+            uuid: null,
+            status: 'in_progress'
+        };
+
         generateBracket(teams, { shuffle: true });
         tournamentData.favoriteTeamCode = favoriteCode;
         tournamentData.favoriteTeamName = favoriteTeam ? favoriteTeam.name : null;
+        tournamentData.status = 'in_progress';
         favoriteTeamSelect.classList.remove('is-invalid');
         if (favoriteTeamFeedback) {
             favoriteTeamFeedback.classList.add('d-none');
         }
+        lockGenerateButton('Torneo en curso. Completa todos los partidos para generar uno nuevo.');
         showTournamentInfo('En Marcha');
         updateFavoriteTeamDisplay();
         resetRewardsPanel();
@@ -707,6 +997,7 @@ document.addEventListener('DOMContentLoaded', function () {
             thirdPlace,
             fourthPlace
         };
+        tournamentData.status = 'completed';
 
         updateRewardsUI();
         showTournamentInfo('Copa Finalizada');
@@ -801,6 +1092,18 @@ document.addEventListener('DOMContentLoaded', function () {
         });
 
         showNotification('¡Todas las selecciones han sido activadas!', 'success');
+    }
+
+    function openCurrentTournament(shouldScroll = true) {
+        switchToBracketView();
+
+        if (!shouldScroll || !tournamentBracketPanel) {
+            return;
+        }
+
+        requestAnimationFrame(() => {
+            tournamentBracketPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
     }
 
     function switchToBracketView() {
@@ -919,7 +1222,9 @@ document.addEventListener('DOMContentLoaded', function () {
             favoriteTeamCode: null,
             favoriteTeamName: null,
             thirdPlaceMatch: null,
-            rewards: createEmptyRewards()
+            rewards: createEmptyRewards(),
+            uuid: null,
+            status: 'idle'
         };
 
         showNotification('Las selecciones permanecen fijas; se restableció la vista del simulador.', 'info');

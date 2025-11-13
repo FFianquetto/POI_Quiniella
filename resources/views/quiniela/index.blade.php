@@ -47,7 +47,16 @@
                     </div>
                 </div>
                 <div class="card-body">
-                    <form action="{{ route('quinielas.mundial.apostar') }}" method="POST">
+                    <div class="mb-3 text-end">
+                        <button type="button" class="btn btn-outline-primary btn-sm" id="randomFillButton">
+                            <i class="fas fa-dice me-2"></i>
+                            Autocompletar aleatorio
+                        </button>
+                    </div>
+                    <form action="{{ route('quinielas.mundial.apostar') }}"
+                          method="POST"
+                          id="worldCupBetsForm"
+                          data-matches="{{ $worldCupMatches->count() }}">
                         @csrf
                         <div class="table-responsive">
                             <table class="table align-middle mundial-table">
@@ -65,7 +74,8 @@
                                         @php
                                             $bet = $usuarioBets->get($match['match_key']);
                                         @endphp
-                                        <tr>
+                                        <tr data-match-key="{{ $match['match_key'] }}"
+                                            data-match-label="{{ $match['team_a']['code'] }} vs {{ $match['team_b']['code'] }}">
                                             <td class="llave-cell">
                                                 <div class="match-teams">
                                                     <div class="team-line">
@@ -124,21 +134,35 @@
                                                 </div>
                                             </td>
                                             <td class="text-center seleccion-col">
-                                                @if($bet)
-                                                    <span class="badge bg-success">
+                                                <span class="selection-badge badge {{ $bet ? 'bg-success text-white fw-semibold' : 'text-muted' }}">
+                                                    @if($bet)
                                                         {{ $bet->selected_code }}
                                                         @if(!is_null($bet->score_a) && !is_null($bet->score_b))
                                                             {{ $bet->score_a }}-{{ $bet->score_b }}
                                                         @endif
-                                                    </span>
-                                                @else
-                                                    <span class="text-muted small">Sin selección</span>
-                                                @endif
+                                                    @else
+                                                        Sin selección
+                                                    @endif
+                                                </span>
                                             </td>
                                         </tr>
                                     @endforeach
                                 </tbody>
                             </table>
+                        </div>
+                        <div class="bets-validation-summary mt-4">
+                            <div id="betsValidationMessage" class="alert alert-warning d-none" role="alert"></div>
+                            <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3">
+                                <p class="mb-0 text-muted" id="betsProgressText">
+                                    Completa tus predicciones para registrar la Quiniela de esta fase.
+                                </p>
+                                <div class="d-flex flex-column flex-md-row gap-2 w-100 w-lg-auto">
+                                    <button type="submit" class="btn btn-success w-100" id="submitBetsButton" disabled>
+                                        <i class="fas fa-save me-2"></i>
+                                        Guardar Quiniela
+                                    </button>
+                                </div>
+                            </div>
                         </div>
 
     @endif
@@ -305,6 +329,29 @@
     margin: 2px 0;
 }
 
+.bets-validation-summary {
+    background: rgba(248, 252, 248, 0.9);
+    border: 1px solid rgba(46, 125, 50, 0.18);
+    border-radius: 18px;
+    padding: 18px 22px;
+}
+
+.bets-validation-summary .btn-success {
+    font-weight: 700;
+    box-shadow: 0 10px 20px rgba(46, 125, 50, 0.22);
+}
+
+.bets-validation-summary .btn-outline-secondary {
+    font-weight: 600;
+    border-radius: 999px;
+}
+
+.bets-validation-summary .alert {
+    border-radius: 12px;
+    margin-bottom: 16px;
+    border: none;
+}
+
 @media (max-width: 768px) {
     .match-teams {
         align-items: center;
@@ -319,4 +366,160 @@
     }
 }
 </style>
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const form = document.getElementById('worldCupBetsForm');
+    if (!form) {
+        return;
+    }
+
+    const totalMatches = parseInt(form.dataset.matches || '0', 10);
+    const randomFillButton = document.getElementById('randomFillButton');
+    const submitButton = document.getElementById('submitBetsButton');
+    const messageBox = document.getElementById('betsValidationMessage');
+    const progressText = document.getElementById('betsProgressText');
+
+    const getMatchRows = () => Array.from(form.querySelectorAll('tr[data-match-key]'));
+
+    function showMessage(text, type = 'warning') {
+        if (!messageBox) {
+            return;
+        }
+        messageBox.textContent = text;
+        messageBox.className = `alert alert-${type}`;
+        messageBox.classList.remove('d-none');
+    }
+
+    function hideMessage() {
+        if (!messageBox) {
+            return;
+        }
+        messageBox.classList.add('d-none');
+        messageBox.textContent = '';
+    }
+
+    function evaluateSelections() {
+        const rows = getMatchRows();
+        let completed = 0;
+        const pendingLabels = [];
+
+        rows.forEach((row) => {
+            const radios = row.querySelectorAll('.winner-options input[type="radio"]');
+            const scoreInputs = row.querySelectorAll('.marcador');
+            const matchLabel = row.dataset.matchLabel || row.dataset.matchKey;
+            const selectionBadge = row.querySelector('.seleccion-col .selection-badge');
+
+            const checkedRadio = Array.from(radios).find((radio) => radio.checked);
+            const winnerSelected = Boolean(checkedRadio);
+            const scoresFilled = Array.from(scoreInputs).every((input) => input.value !== '' && input.value !== null);
+
+            if (selectionBadge) {
+                if (winnerSelected && scoresFilled) {
+                    const winnerCode = checkedRadio.value;
+                    selectionBadge.textContent = `${winnerCode} ${scoreInputs[0].value}-${scoreInputs[1].value}`;
+                    selectionBadge.classList.remove('bg-secondary', 'text-muted');
+                    selectionBadge.classList.add('bg-success', 'text-white', 'fw-semibold');
+                } else {
+                    selectionBadge.textContent = 'Sin selección';
+                    selectionBadge.classList.remove('bg-success', 'text-white', 'fw-semibold');
+                    selectionBadge.classList.add('text-muted');
+                }
+            }
+
+            if (winnerSelected && scoresFilled) {
+                completed += 1;
+            } else {
+                pendingLabels.push(matchLabel);
+            }
+        });
+
+        const allCompleted = completed === totalMatches && totalMatches > 0;
+
+        if (allCompleted) {
+            submitButton?.removeAttribute('disabled');
+            submitButton?.classList.remove('disabled');
+            progressText.classList.remove('text-warning', 'text-danger');
+            progressText.classList.add('text-success', 'fw-semibold');
+            progressText.textContent = '¡Listo! Todos los partidos de esta fase tienen pronóstico.';
+            hideMessage();
+        } else {
+            submitButton?.setAttribute('disabled', 'disabled');
+            submitButton?.classList.add('disabled');
+            const remaining = Math.max(totalMatches - completed, 0);
+            progressText.classList.remove('text-success', 'fw-semibold');
+            progressText.classList.add('text-warning');
+            progressText.textContent = `Te faltan ${remaining} pronóstico${remaining === 1 ? '' : 's'} por completar en esta fase.`;
+            if (pendingLabels.length) {
+                showMessage(`Debes seleccionar ganador y marcador para: ${pendingLabels.join(', ')}`, 'warning');
+            }
+        }
+
+        return { allCompleted, pendingLabels };
+    }
+
+    randomFillButton?.addEventListener('click', (event) => {
+        event.preventDefault();
+        const rows = getMatchRows();
+
+        rows.forEach((row) => {
+            const radios = Array.from(row.querySelectorAll('.winner-options input[type="radio"]'));
+            const scoreInputs = row.querySelectorAll('.marcador');
+
+            if (radios.length !== 2 || scoreInputs.length !== 2) {
+                return;
+            }
+
+            const selectedIndex = Math.random() < 0.5 ? 0 : 1;
+            radios.forEach((radio, idx) => {
+                radio.checked = idx === selectedIndex;
+            });
+
+            const winnerScore = Math.floor(Math.random() * 5) + 1;
+            let loserScore = Math.floor(Math.random() * winnerScore);
+            if (loserScore === winnerScore) {
+                loserScore = Math.max(0, winnerScore - 1);
+            }
+
+            if (selectedIndex === 0) {
+                scoreInputs[0].value = winnerScore;
+                scoreInputs[1].value = loserScore;
+            } else {
+                scoreInputs[0].value = loserScore;
+                scoreInputs[1].value = winnerScore;
+            }
+
+            radios[selectedIndex].dispatchEvent(new Event('change', { bubbles: true }));
+            scoreInputs.forEach((input) => {
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                input.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+        });
+
+        const { allCompleted } = evaluateSelections();
+        if (allCompleted) {
+            showMessage('Generamos una quiniela aleatoria para esta fase. ¡Revísala antes de guardar!', 'info');
+        } else {
+            showMessage('Se generaron selecciones aleatorias. Revisa los partidos pendientes antes de guardar.', 'warning');
+        }
+    });
+
+    form.addEventListener('input', (event) => {
+        if (event.target.matches('.winner-radio, .marcador')) {
+            evaluateSelections();
+        }
+    });
+
+    form.addEventListener('submit', (event) => {
+        const { allCompleted } = evaluateSelections();
+        if (!allCompleted) {
+            event.preventDefault();
+            showMessage('Completa todas tus predicciones antes de guardar la Quiniela.', 'danger');
+        }
+    });
+
+    evaluateSelections();
+});
+</script>
+@endpush
 @endsection

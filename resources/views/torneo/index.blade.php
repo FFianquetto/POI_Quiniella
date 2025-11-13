@@ -3,6 +3,9 @@
 @section('content')
 <div class="tournament-container">
     <div class="container-fluid">
+        <div id="activeTournamentData"
+             data-tournament='@json($serializedTournament)'
+             class="d-none"></div>
         <!-- Header del Torneo -->
         <div class="row mb-4">
             <div class="col-12">
@@ -65,17 +68,28 @@
                             <div class="selection-summary d-flex flex-wrap justify-content-center gap-3">
                                 <div class="selected-team-display" id="selectedTeamDisplay">
                                     <span class="label text-white-50 d-block mb-1">Favorito seleccionado</span>
-                                    <span class="selected-team-pill text-white-75" data-default="Ninguno">
-                                        Ninguno
+                                    <span class="selected-team-pill text-white-75" data-default="Selecciona un favorito">
+                                        Selecciona un favorito
                                     </span>
                                 </div>
                             </div>
                         </div>
-                        <div class="col-xl-3 col-lg-3 col-md-6 d-flex justify-content-center justify-content-lg-start">
-                            <button type="button" class="btn tournament-btn btn-generate btn-wide w-100 w-md-auto" id="generateTournament">
-                                <i class="fas fa-play me-2"></i>
-                                Generar Mundial
-                            </button>
+                        <div class="col-xl-4 col-lg-5 col-md-6 mt-3 mt-md-0">
+                            <div class="tournament-actions d-flex flex-column flex-lg-row align-items-center justify-content-center justify-content-lg-end gap-2">
+                                <button type="button" class="btn tournament-btn btn-generate btn-wide flex-fill" id="generateTournament">
+                                    <i class="fas fa-play me-2"></i>
+                                    Generar Mundial
+                                </button>
+                                <button type="button"
+                                        class="btn btn-view-simulator flex-fill d-none"
+                                        id="openTournamentSimulator">
+                                    <i class="fas fa-eye me-2"></i>
+                                    Ver simulación
+                                </button>
+                            </div>
+                            <small id="tournamentLockMessage" class="tournament-lock-message text-tournament-orange d-none text-center text-lg-end mt-2">
+                                Ya hay un torneo en curso. Finalízalo antes de generar uno nuevo.
+                            </small>
                         </div>
                     </div>
 

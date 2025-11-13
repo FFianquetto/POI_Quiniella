@@ -142,27 +142,62 @@ class QuinielaController extends Controller
         $worldCupTeams = $this->getWorldCupTeams();
         $matches = $this->generateWorldCupMatches($worldCupTeams)->keyBy('match_key');
 
-        foreach ($betsInput as $matchKey => $betData) {
-            if (!$matches->has($matchKey) || !is_array($betData)) {
-                continue;
-            }
+        $expectedMatches = $matches->count();
+        $pendingMatches = [];
+        $validatedBets = [];
 
+        foreach ($matches as $matchKey => $match) {
+            $betData = $betsInput[$matchKey] ?? null;
             $chosenTeam = $betData['team'] ?? null;
             $scoreA = $betData['score_a'] ?? null;
             $scoreB = $betData['score_b'] ?? null;
 
-            $match = $matches->get($matchKey);
+            $matchLabel = sprintf('%s vs %s', $match['team_a']['code'], $match['team_b']['code']);
+
+            if (!$betData || $chosenTeam === null || $scoreA === null || $scoreB === null || $scoreA === '' || $scoreB === '') {
+                $pendingMatches[] = $matchLabel;
+                continue;
+            }
+
             $validSelections = [
                 $match['team_a']['code'],
                 $match['team_b']['code'],
             ];
 
-            if (!$chosenTeam || !in_array($chosenTeam, $validSelections, true)) {
+            if (!in_array($chosenTeam, $validSelections, true)) {
+                $pendingMatches[] = $matchLabel;
                 continue;
             }
 
-            $scoreA = is_numeric($scoreA) ? max(0, min(20, (int) $scoreA)) : null;
-            $scoreB = is_numeric($scoreB) ? max(0, min(20, (int) $scoreB)) : null;
+            if (!is_numeric($scoreA) || !is_numeric($scoreB)) {
+                $pendingMatches[] = $matchLabel;
+                continue;
+            }
+
+            $scoreA = max(0, min(20, (int) $scoreA));
+            $scoreB = max(0, min(20, (int) $scoreB));
+
+            $validatedBets[$matchKey] = [
+                'match' => $match,
+                'selected_code' => $chosenTeam,
+                'score_a' => $scoreA,
+                'score_b' => $scoreB,
+            ];
+        }
+
+        if (count($validatedBets) !== $expectedMatches) {
+            $message = 'Debes registrar un ganador y marcador para todos los partidos.';
+            if (!empty($pendingMatches)) {
+                $message .= ' Pendientes: ' . implode(', ', $pendingMatches);
+            }
+
+            return back()
+                ->withInput()
+                ->with('error', $message);
+        }
+
+        foreach ($validatedBets as $matchKey => $data) {
+            $match = $data['match'];
 
             WorldCupBet::updateOrCreate(
                 [
@@ -170,12 +205,12 @@ class QuinielaController extends Controller
                     'match_key' => $matchKey,
                 ],
                 [
-                    'stage' => $match['stage'],
+                    'stage' => $match['stage'] ?? 'Fase Eliminatoria',
                     'team_a_code' => $match['team_a']['code'],
                     'team_b_code' => $match['team_b']['code'],
-                    'selected_code' => $chosenTeam,
-                    'score_a' => $scoreA,
-                    'score_b' => $scoreB,
+                    'selected_code' => $data['selected_code'],
+                    'score_a' => $data['score_a'],
+                    'score_b' => $data['score_b'],
                 ]
             );
         }

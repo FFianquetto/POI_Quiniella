@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\WorldCupMatchResult;
 use App\Models\WorldCupTeam;
 use App\Models\WorldCupTournament;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -31,7 +33,13 @@ class TorneoController extends Controller
             ];
         })->values()->toJson();
 
-        return view('torneo.index', compact('worldCupTeams', 'worldCupTeamsDataset'));
+        $latestTournament = Schema::hasTable('world_cup_tournaments')
+            ? WorldCupTournament::latest()->first()
+            : null;
+
+        $serializedTournament = $this->serializeTournamentForFrontend($latestTournament);
+
+        return view('torneo.index', compact('worldCupTeams', 'worldCupTeamsDataset', 'serializedTournament'));
     }
 
     /**
@@ -178,6 +186,29 @@ class TorneoController extends Controller
             'results' => 'nullable|array',
         ]);
 
+        $activeTournament = WorldCupTournament::query()
+            ->when(Schema::hasColumn('world_cup_tournaments', 'status'), function ($query) {
+                $query->where(function ($subQuery) {
+                    $subQuery
+                        ->whereNull('status')
+                        ->orWhere('status', '!=', 'completed');
+                });
+            }, function ($query) {
+                // Compatibilidad con versiones sin columna status
+                $query->whereNull('completed_at');
+            })
+            ->latest()
+            ->first();
+
+        if ($activeTournament) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Ya existe un torneo en progreso. Debes finalizarlo antes de generar uno nuevo.',
+                'uuid' => $activeTournament->uuid,
+                'status' => $activeTournament->status ?? 'in_progress',
+            ], 409);
+        }
+
         $tournament = WorldCupTournament::create([
             'uuid' => Str::uuid()->toString(),
             'favorite_team' => $data['favorite_team'] ?? null,
@@ -185,12 +216,18 @@ class TorneoController extends Controller
             'teams' => $data['teams'],
             'rounds' => $data['rounds'],
             'results' => $data['results'] ?? null,
+            'status' => 'in_progress',
+            'completed_at' => null,
         ]);
+
+        $tournament->refresh();
+        $this->syncMatchResults($tournament);
 
         return response()->json([
             'success' => true,
             'uuid' => $tournament->uuid,
             'id' => $tournament->id,
+            'status' => $tournament->status,
         ]);
     }
 
@@ -210,6 +247,7 @@ class TorneoController extends Controller
             'favorite_team' => 'nullable|string|max:5',
             'rounds' => 'nullable|array',
             'results' => 'nullable|array',
+            'status' => 'nullable|string|in:in_progress,completed',
         ]);
 
         $updates = [];
@@ -227,10 +265,165 @@ class TorneoController extends Controller
             $updates['results'] = array_merge($existingResults, $payload['results'] ?? []);
         }
 
+        if (array_key_exists('status', $payload)) {
+            $updates['status'] = $payload['status'];
+            $updates['completed_at'] = $payload['status'] === 'completed' ? Carbon::now() : null;
+        }
+
         if (!empty($updates)) {
             $tournament->update($updates);
         }
 
-        return response()->json(['success' => true]);
+        $tournament->refresh();
+
+        if (($tournament->status ?? 'in_progress') !== 'completed' && $this->tournamentHasFinished($tournament)) {
+            $tournament->update([
+                'status' => 'completed',
+                'completed_at' => Carbon::now(),
+            ]);
+            $tournament->refresh();
+        }
+
+        $this->syncMatchResults($tournament);
+
+        return response()->json([
+            'success' => true,
+            'status' => $tournament->status ?? 'in_progress',
+            'completed_at' => optional($tournament->completed_at)->toIso8601String(),
+        ]);
+    }
+
+    protected function serializeTournamentForFrontend(?WorldCupTournament $tournament): ?array
+    {
+        if (!$tournament) {
+            return null;
+        }
+
+        return [
+            'uuid' => $tournament->uuid,
+            'status' => $tournament->status ?? 'in_progress',
+            'favorite_team' => $tournament->favorite_team,
+            'teams' => $tournament->teams,
+            'rounds' => $tournament->rounds,
+            'results' => $tournament->results,
+            'completed_at' => optional($tournament->completed_at)->toIso8601String(),
+        ];
+    }
+
+    protected function tournamentHasFinished(WorldCupTournament $tournament): bool
+    {
+        $rounds = collect($tournament->rounds ?? []);
+
+        if ($rounds->isEmpty()) {
+            return false;
+        }
+
+        $finalRound = $rounds->last();
+        $finalMatches = collect($finalRound['matches'] ?? []);
+        $finalized = $finalMatches->isNotEmpty() && $finalMatches->every(fn ($match) => !empty($match['played']));
+
+        if (!$finalized) {
+            return false;
+        }
+
+        $thirdPlace = data_get($tournament->results, 'third_place');
+
+        if ($thirdPlace) {
+            return (bool) data_get($thirdPlace, 'played', false);
+        }
+
+        return true;
+    }
+
+    protected function syncMatchResults(WorldCupTournament $tournament): void
+    {
+        if (!Schema::hasTable('world_cup_match_results')) {
+            return;
+        }
+
+        $rounds = collect($tournament->rounds ?? []);
+        $records = [];
+
+        foreach ($rounds as $roundIndex => $round) {
+            $roundName = $round['name'] ?? $round['round_name'] ?? $round['stage'] ?? sprintf('Ronda %d', $roundIndex + 1);
+
+            foreach ($round['matches'] ?? [] as $matchIndex => $match) {
+                $records[] = $this->buildMatchResultPayload($tournament, (int) $roundIndex, $roundName, (int) $matchIndex, $match);
+            }
+        }
+
+        if ($thirdPlace = data_get($tournament->results, 'third_place')) {
+            $records[] = $this->buildMatchResultPayload($tournament, 4, 'Tercer Lugar', 0, $thirdPlace, true);
+        }
+
+        if (empty($records)) {
+            return;
+        }
+
+        $matchKeys = collect($records)->pluck('match_key')->all();
+
+        WorldCupMatchResult::upsert(
+            $records,
+            ['tournament_id', 'match_key'],
+            [
+                'round_index',
+                'round_name',
+                'order',
+                'team1_code',
+                'team1_name',
+                'team2_code',
+                'team2_name',
+                'score1',
+                'score2',
+                'winner_code',
+                'winner_name',
+                'decided_by_penalties',
+                'penalty_score',
+                'played',
+                'played_at',
+                'updated_at',
+            ]
+        );
+
+        WorldCupMatchResult::where('tournament_id', $tournament->id)
+            ->whereNotIn('match_key', $matchKeys)
+            ->delete();
+    }
+
+    protected function buildMatchResultPayload(
+        WorldCupTournament $tournament,
+        int $roundIndex,
+        ?string $roundName,
+        int $order,
+        array $match,
+        bool $isThirdPlace = false
+    ): array {
+        $matchKey = $match['match_key'] ?? $match['id'] ?? ($isThirdPlace ? 'third-place' : sprintf('round-%d-match-%d', $roundIndex, $order));
+        $team1 = $match['team1'] ?? $match['team_a'] ?? null;
+        $team2 = $match['team2'] ?? $match['team_b'] ?? null;
+        $played = (bool) ($match['played'] ?? false);
+        $decidedByPenalties = (bool) ($match['decidedByPenalties'] ?? $match['decided_by_penalties'] ?? false);
+
+        return [
+            'tournament_id' => $tournament->id,
+            'match_key' => $matchKey,
+            'round_index' => $isThirdPlace ? 4 : $roundIndex,
+            'round_name' => $roundName,
+            'order' => $order,
+            'team1_code' => $team1['code'] ?? null,
+            'team1_name' => $team1['name'] ?? null,
+            'team2_code' => $team2['code'] ?? null,
+            'team2_name' => $team2['name'] ?? null,
+            'score1' => $match['score1'] ?? null,
+            'score2' => $match['score2'] ?? null,
+            'winner_code' => data_get($match, 'winner.code'),
+            'winner_name' => data_get($match, 'winner.name'),
+            'decided_by_penalties' => $decidedByPenalties,
+            'penalty_score' => $match['penaltyScore'] ?? $match['penalty_score'] ?? null,
+            'played' => $played,
+            'played_at' => $played ? Carbon::now() : null,
+            'created_at' => Carbon::now(),
+            'updated_at' => Carbon::now(),
+        ];
     }
 }

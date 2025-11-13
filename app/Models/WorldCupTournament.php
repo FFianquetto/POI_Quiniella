@@ -13,11 +13,19 @@ class WorldCupTournament extends Model
         'teams',
         'rounds',
         'results',
+        'status',
+        'completed_at',
     ];
 
     protected $casts = [
         'teams' => 'array',
         'rounds' => 'array',
         'results' => 'array',
+        'completed_at' => 'datetime',
     ];
+
+    public function matchResults()
+    {
+        return $this->hasMany(WorldCupMatchResult::class, 'tournament_id');
+    }
 }
