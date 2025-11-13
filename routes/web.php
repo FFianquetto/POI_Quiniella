@@ -5,7 +5,6 @@ use App\Http\Controllers\RegistroController;
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\PublicacioneController;
 use App\Http\Controllers\AuthController;
-use App\Http\Controllers\EquipoController;
 use App\Http\Controllers\QuinielaController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\ComentarioController;
@@ -30,15 +29,12 @@ Route::resource('comentarios', ComentarioController::class);
 // Rutas adicionales para comentarios
 Route::get('/comentarios/conversacion/{usuario1}/{usuario2}', [ComentarioController::class, 'conversacion'])->name('comentarios.conversacion');
 
-// Rutas para equipos (solo ver información)
-Route::get('/equipos', [EquipoController::class, 'index'])->name('equipos.index');
-Route::get('/equipos/{equipo}', [EquipoController::class, 'show'])->name('equipos.show');
-
 // Rutas para quinielas (formato casa de apuestas)
 Route::get('/quinielas', [QuinielaController::class, 'index'])->name('quinielas.index');
 Route::get('/quinielas/{quiniela}', [QuinielaController::class, 'show'])->name('quinielas.show');
 Route::post('/quinielas/{quiniela}/participar', [QuinielaController::class, 'participar'])->name('quinielas.participar');
 Route::post('/quinielas/{quiniela}/prediccion', [QuinielaController::class, 'hacerPrediccion'])->name('quinielas.prediccion');
+Route::post('/quinielas/mundial/apostar', [QuinielaController::class, 'apostarMundial'])->name('quinielas.mundial.apostar');
 
 // Rutas para administración
 Route::prefix('admin')->group(function () {
@@ -82,3 +78,5 @@ Route::get('/torneo', [TorneoController::class, 'index'])->name('torneo.index');
 Route::post('/torneo/generate', [TorneoController::class, 'generate'])->name('torneo.generate');
 Route::post('/torneo/simulate-match', [TorneoController::class, 'simulateMatch'])->name('torneo.simulate-match');
 Route::get('/torneo/stats', [TorneoController::class, 'getStats'])->name('torneo.stats');
+Route::post('/torneo/store', [TorneoController::class, 'store'])->name('torneo.store');
+Route::patch('/torneo/{uuid}', [TorneoController::class, 'update'])->name('torneo.update');

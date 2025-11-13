@@ -78,23 +78,13 @@
                     <ul class="navbar-nav me-auto">
                     @if(session('usuario_logueado'))
                         <li class="nav-item">
-                            <a class="nav-link" href="{{ route('quinielas.index') }}">
+                            <a class="nav-link {{ request()->routeIs('quinielas.*') ? 'nav-link-active' : '' }}" href="{{ route('quinielas.index') }}">
                                 <i class="fas fa-trophy me-1"></i> Quinielas
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="{{ route('equipos.index') }}">
-                                <i class="fas fa-users me-1"></i> Equipos
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ route('chat.index') }}">
-                                <i class="fas fa-comments me-1"></i> Chats
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ route('torneo.index') }}">
-                                <i class="fas fa-sitemap me-1"></i> Simulador
+                            <a class="nav-link {{ request()->routeIs('torneo.*') ? 'nav-link-active' : '' }}" href="{{ route('torneo.index') }}">
+                                <i class="fas fa-sitemap me-1"></i> Torneo
                             </a>
                         </li>
                     @endif
@@ -102,6 +92,11 @@
 
                 <ul class="navbar-nav ms-auto">
                     @if(session('usuario_logueado'))
+                        <li class="nav-item">
+                            <a class="nav-link {{ request()->routeIs('chat.*') ? 'nav-link-active' : '' }}" href="{{ route('chat.index') }}">
+                                <i class="fas fa-comments me-1"></i> Chats
+                            </a>
+                        </li>
                         <li class="nav-item">
                             <a class="nav-link" href="{{ route('auth.dashboard') }}">
                                 <i class="fas fa-user-circle me-2"></i> 

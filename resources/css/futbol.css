@@ -336,3 +336,316 @@ footer:hover::before {
     color: var(--white);
     box-shadow: var(--shadow-orange);
 }
+
+.reward-list .reward-list-item {
+    background: rgba(255, 255, 255, 0.94);
+    color: #1f2937;
+    border: 0;
+    font-weight: 600;
+    border-radius: 12px;
+    margin-bottom: 8px;
+    box-shadow: 0 4px 12px rgba(31, 41, 55, 0.08);
+}
+
+.reward-list .reward-list-item:last-child {
+    margin-bottom: 0;
+}
+
+.reward-list .badge {
+    box-shadow: 0 3px 8px rgba(240, 140, 60, 0.35);
+}
+
+.world-cup-header {
+    background: linear-gradient(130deg, rgba(11, 96, 189, 0.92), rgba(27, 173, 104, 0.88), rgba(255, 200, 55, 0.85));
+    border-radius: 24px;
+    padding: 28px 36px;
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.18);
+    color: #ffffff;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.world-cup-header h1 {
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.world-cup-header p {
+    color: rgba(255, 255, 255, 0.86);
+    max-width: 640px;
+}
+
+.quiniela-header {
+    background: linear-gradient(130deg, rgba(26, 118, 226, 0.92), rgba(27, 173, 104, 0.9));
+}
+
+.world-cup-badge .badge {
+    border-radius: 999px;
+    padding: 0.75rem 1.4rem;
+    box-shadow: 0 6px 16px rgba(255, 202, 40, 0.35);
+}
+
+.tournament-info-panel .info-item h5 {
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: 0.78rem;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.tournament-info-panel .info-item h3 {
+    letter-spacing: 0.03em;
+}
+
+.info-favorite h3 {
+    font-size: 1.25rem;
+    letter-spacing: 0.14em;
+}
+
+.achievement-panel {
+    background: linear-gradient(135deg, rgba(46, 125, 50, 0.82), rgba(76, 175, 80, 0.74));
+    border-radius: 24px;
+    border: 1px solid rgba(255, 255, 255, 0.26);
+    padding: 28px 32px;
+    box-shadow: 0 18px 34px rgba(46, 125, 50, 0.22);
+    color: #fdfdfd;
+}
+
+.achievement-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+}
+
+.btn-gold {
+    background: var(--gradient-orange);
+    color: var(--white);
+    border: none;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    box-shadow: 0 8px 16px rgba(255, 107, 53, 0.32);
+}
+
+.btn-gold:hover {
+    filter: brightness(1.08);
+    color: var(--white);
+}
+
+.achievement-body .achievement-summary-card {
+    background: rgba(255, 255, 255, 0.26);
+    border-radius: 18px;
+    padding: 22px 24px;
+    height: 100%;
+    border: 1px solid rgba(255, 255, 255, 0.36);
+    box-shadow: 0 12px 28px rgba(46, 125, 50, 0.18);
+}
+
+.achievement-summary-card h6 {
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
+    color: rgba(22, 42, 26, 0.82);
+}
+
+.achievement-summary-card h2 {
+    font-size: 2.8rem;
+    font-weight: 800;
+    margin: 0.4rem 0;
+    color: rgba(12, 35, 16, 0.94);
+}
+
+.achievement-body .progress {
+    height: 12px;
+    background: rgba(255, 255, 255, 0.36);
+    border-radius: 999px;
+}
+
+.achievement-body .progress-bar {
+    background: linear-gradient(135deg, var(--orange) 0%, var(--orange-light) 100%);
+    border-radius: 999px;
+    box-shadow: 0 6px 14px rgba(255, 138, 101, 0.35);
+}
+
+.badge-gallery {
+    background: rgba(255, 255, 255, 0.32);
+    border-radius: 18px;
+    padding: 24px;
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    height: 100%;
+    box-shadow: 0 14px 30px rgba(46, 125, 50, 0.2);
+}
+
+.badge-card {
+    background: rgba(255, 255, 255, 0.34);
+    border-radius: 16px;
+    padding: 16px;
+    text-align: center;
+    position: relative;
+    border: 1px solid transparent;
+    transition: transform 0.2s ease, border 0.2s ease;
+}
+
+.badge-card.unlocked {
+    border-color: rgba(255, 215, 0, 0.62);
+    box-shadow: 0 12px 22px rgba(255, 215, 0, 0.28);
+}
+
+.badge-card.unlocked .badge-icon {
+    filter: drop-shadow(0 0 6px rgba(255, 215, 0, 0.4));
+}
+
+.badge-card.locked {
+    opacity: 0.68;
+}
+
+.badge-card .badge-icon {
+    font-size: 2rem;
+    margin-bottom: 8px;
+}
+
+.badge-card h5 {
+    font-size: 1rem;
+    font-weight: 700;
+    margin-bottom: 6px;
+    color: rgba(22, 42, 26, 0.94);
+}
+
+.badge-card p {
+    font-size: 0.82rem;
+    color: rgba(22, 42, 26, 0.75);
+    margin-bottom: 0;
+}
+
+.achievement-history .list-group-item {
+    background: rgba(255, 255, 255, 0.32);
+    border: 0;
+    border-radius: 12px;
+    margin-bottom: 10px;
+    color: rgba(22, 42, 26, 0.92);
+    padding: 14px 18px;
+    box-shadow: 0 12px 22px rgba(46, 125, 50, 0.22);
+}
+
+.achievement-history .list-group-item:last-child {
+    margin-bottom: 0;
+}
+
+.achievement-history .badge {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    background: var(--gradient-orange);
+    color: var(--white);
+}
+
+.world-cup-teams-wrapper {
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 20px;
+    padding: 24px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.world-cup-team-summary {
+    background: rgba(255, 255, 255, 0.18);
+    border-radius: 18px;
+    padding: 18px 20px;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    box-shadow: 0 10px 20px rgba(46, 125, 50, 0.18);
+}
+
+.world-cup-team-summary .summary-label {
+    display: block;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 0.72rem;
+}
+
+.world-cup-team-card {
+    display: flex;
+    gap: 16px;
+    background: rgba(255, 255, 255, 0.94);
+    border-radius: 18px;
+    padding: 16px 18px;
+    box-shadow: 0 12px 24px rgba(46, 125, 50, 0.18);
+    align-items: center;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.world-cup-team-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 16px 32px rgba(46, 125, 50, 0.22);
+}
+
+.world-cup-team-flag {
+    width: 52px;
+    height: 36px;
+    border-radius: 8px;
+    overflow: hidden;
+    background: rgba(0, 0, 0, 0.05);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.world-cup-team-flag img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.placeholder-flag {
+    font-weight: 700;
+    color: var(--primary-green);
+}
+
+.world-cup-team-body h5 {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #243923;
+}
+
+.world-cup-team-body .label {
+    font-weight: 600;
+    color: rgba(36, 57, 35, 0.75);
+}
+
+.world-cup-team-body .value {
+    color: rgba(28, 47, 27, 0.9);
+    font-weight: 600;
+}
+
+.nav-link.nav-link-active {
+    background: linear-gradient(125deg, #3de074 0%, #1bb154 100%);
+    color: var(--white) !important;
+    border-radius: 999px;
+    padding: 9px 20px !important;
+    box-shadow: 0 10px 20px rgba(45, 180, 95, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.navbar-nav .nav-link.nav-link-active i {
+    color: var(--white) !important;
+}
+
+@media (max-width: 992px) {
+    .achievement-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .achievement-header .d-flex {
+        width: 100%;
+        justify-content: flex-start;
+    }
+}
+
+@media (max-width: 768px) {
+    .achievement-panel {
+        padding: 22px 20px;
+    }
+
+    .badge-gallery {
+        padding: 18px;
+    }
+}
