@@ -6,22 +6,19 @@
 
 @section('content')
 <div class="container-fluid">
-    <div class="row">
+    <!-- Header de la página -->
+    <div class="row mb-4">
         <div class="col-12">
-            <div class="card">
-                <div class="card-header">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <span id="card_title">
-                            {{ __('Dashboard de') }} {{ $usuario->nombre }}
-                        </span>
-                        <div class="float-right">
-                            <form action="{{ route('auth.logout') }}" method="POST" style="display: inline;">
-                                @csrf
-                                <button type="submit" class="btn btn-danger btn-sm">
-                                    <i class="fa fa-sign-out"></i> {{ __('Cerrar Sesión') }}
-                                </button>
-                            </form>
-                        </div>
+            <div class="world-cup-header dashboard-header">
+                <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+                    <div>
+                        <h1 class="mb-1">
+                            <i class="fas fa-user-circle me-3"></i>
+                            Dashboard de {{ $usuario->nombre }}
+                        </h1>
+                        <p class="mb-0">
+                            Bienvenido a tu panel de control. Gestiona tus quinielas, participa en torneos y mantén contacto con otros usuarios.
+                        </p>
                     </div>
                 </div>
             </div>
@@ -31,12 +28,15 @@
     <div class="row">
         <!-- Chats Recientes -->
         <div class="col-md-8">
-            <div class="card">
-                <div class="card-header">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <span class="card-title">{{ __('Chats Recientes') }}</span>
-                        <a href="{{ route('chat.index') }}" class="btn btn-primary btn-sm">
-                            <i class="fa fa-comments"></i> Ver Todos los Chats
+            <div class="card mundial-card">
+                <div class="card-header bg-success">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="text-white">
+                            <i class="fas fa-comments me-2"></i>
+                            Chats Recientes
+                        </span>
+                        <a href="{{ route('chat.index') }}" class="btn btn-light btn-sm">
+                            <i class="fas fa-comments me-1"></i> Ver Todos los Chats
                         </a>
                     </div>
                 </div>
@@ -94,9 +94,12 @@
 
         <!-- Información del Usuario -->
         <div class="col-md-4">
-            <div class="card">
-                <div class="card-header">
-                    <span class="card-title">{{ __('Mi Perfil') }}</span>
+            <div class="card mundial-card">
+                <div class="card-header bg-primary">
+                    <span class="text-white">
+                        <i class="fas fa-user-circle me-2"></i>
+                        Mi Perfil
+                    </span>
                 </div>
                 <div class="card-body">
                     <div class="text-center mb-3">
@@ -125,16 +128,19 @@
 
     <div class="row mt-3">
         <div class="col-12">
-            <div class="card">
-                <div class="card-header">
-                    <span class="card-title">{{ __('Acciones Rápidas') }}</span>
+            <div class="card mundial-card">
+                <div class="card-header bg-info">
+                    <span class="text-white">
+                        <i class="fas fa-bolt me-2"></i>
+                        Acciones Rápidas
+                    </span>
                 </div>
                 <div class="card-body">
                     <a href="{{ route('quinielas.index') }}" class="btn btn-primary">
                         <i class="fa fa-trophy"></i> {{ __('Ver Quinielas') }}
                     </a>
-                    <a href="{{ route('equipos.index') }}" class="btn btn-success">
-                        <i class="fa fa-futbol-o"></i> {{ __('Ver Equipos') }}
+                    <a href="{{ route('torneo.index') }}" class="btn btn-success">
+                        <i class="fa fa-globe"></i> {{ __('Ver Torneo') }}
                     </a>
                     <a href="{{ route('chat.buscar') }}" class="btn btn-info">
                         <i class="fa fa-user-plus"></i> {{ __('Buscar Usuarios') }}

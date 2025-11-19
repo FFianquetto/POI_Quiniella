@@ -7,6 +7,8 @@ use App\Models\Partido;
 use App\Models\ParticipanteQuiniela;
 use App\Models\WorldCupBet;
 use App\Models\WorldCupTournament;
+use App\Models\WorldCupMatchResult;
+use App\Models\WorldCupTeam;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -19,20 +21,89 @@ class QuinielaController extends Controller
     public function index(): View
     {
         $usuarioId = session('registro_id');
-        $latestTournament = Schema::hasTable('world_cup_tournaments')
-            ? WorldCupTournament::latest()->first()
-            : null;
+        $latestTournament = null;
+        $tournamentStatus = null;
+        $isTournamentClosed = false;
 
-        if ($latestTournament) {
-            $worldCupMatches = $this->extractMatchesFromTournament($latestTournament);
-        } else {
-            $worldCupTeams = $this->getWorldCupTeams();
-            $worldCupMatches = $this->generateWorldCupMatches($worldCupTeams);
+        if (Schema::hasTable('world_cup_tournaments')) {
+            $hasStatusColumn = Schema::hasColumn('world_cup_tournaments', 'status');
+            
+            if ($hasStatusColumn) {
+                $latestTournament = WorldCupTournament::where(function($query) {
+                    $query->where('status', '!=', 'archived')
+                          ->orWhereNull('status');
+                })
+                ->latest()
+                ->first();
+            } else {
+                $latestTournament = WorldCupTournament::latest()->first();
+            }
+
+            if ($latestTournament) {
+                $tournamentStatus = $latestTournament->status ?? 'in_progress';
+                $isTournamentClosed = in_array($tournamentStatus, ['completed', 'archived']);
+            }
         }
 
+        // Obtener partidos del torneo si existe y no está cerrado
+        // Determinar la ronda activa actual
+        $activeRoundIndex = $this->getActiveRoundIndex($latestTournament);
+        $activeRoundName = null;
+        $activeRoundNumber = null;
+        
+        // Obtener información de la ronda activa
+        if ($latestTournament && Schema::hasTable('tournament_quinielas')) {
+            $activeQuiniela = \App\Models\TournamentQuiniela::where('tournament_id', $latestTournament->id)
+                ->where('round_index', $activeRoundIndex)
+                ->first();
+            
+            if ($activeQuiniela) {
+                $activeRoundName = $activeQuiniela->round_name;
+                $activeRoundNumber = $activeRoundIndex + 1; // Fase 1, 2, 3, etc.
+            } else {
+                // Si no hay quiniela, obtener el nombre desde los rounds del torneo
+                $rounds = $latestTournament->rounds ?? [];
+                $roundNames = [
+                    'Dieciseisavos de Final',
+                    'Octavos de Final',
+                    'Cuartos de Final',
+                    'Semifinales',
+                    'Final'
+                ];
+                $activeRoundName = $rounds[$activeRoundIndex]['name'] ?? $roundNames[$activeRoundIndex] ?? "Ronda " . ($activeRoundIndex + 1);
+                $activeRoundNumber = $activeRoundIndex + 1;
+            }
+        }
+        
+        if ($latestTournament && !$isTournamentClosed) {
+            $worldCupMatches = $this->extractMatchesFromTournament($latestTournament, $activeRoundIndex);
+        } else {
+            $worldCupMatches = collect();
+        }
+        
+        // Si el torneo está en progreso pero no tiene partidos aún, mostrar mensaje
+        $tournamentHasNoMatches = $latestTournament && !$isTournamentClosed && $worldCupMatches->isEmpty();
+
         $usuarioBets = collect();
+        $hasAllBetsForActiveRound = false;
         if ($usuarioId && Schema::hasTable('world_cup_bets')) {
-            $usuarioBets = \App\Models\WorldCupBet::where('registro_id', $usuarioId)->get()->keyBy('match_key');
+            // Solo obtener las apuestas de la ronda activa si existe
+            if ($latestTournament && !$isTournamentClosed && $activeRoundIndex !== null && $worldCupMatches->isNotEmpty()) {
+                // Obtener solo las apuestas de la ronda activa actual
+                $usuarioBets = \App\Models\WorldCupBet::where('registro_id', $usuarioId)
+                    ->where('tournament_id', $latestTournament->id)
+                    ->where('round_index', $activeRoundIndex)
+                    ->get()
+                    ->keyBy('match_key');
+                
+                $matchesInActiveRound = $worldCupMatches->count();
+                $betsInActiveRound = $usuarioBets->count();
+                
+                $hasAllBetsForActiveRound = ($betsInActiveRound >= $matchesInActiveRound && $matchesInActiveRound > 0);
+            } else {
+                // Si no hay ronda activa, obtener todas las apuestas (fallback)
+                $usuarioBets = \App\Models\WorldCupBet::where('registro_id', $usuarioId)->get()->keyBy('match_key');
+            }
         }
 
         $quinielas = Quiniela::with(['partido.equipoLocal', 'partido.equipoVisitante', 'participantes'])
@@ -40,7 +111,55 @@ class QuinielaController extends Controller
             ->orderBy('fecha_limite')
             ->paginate(10);
         
-        return view('quiniela.index', compact('quinielas', 'usuarioId', 'worldCupMatches', 'usuarioBets'));
+        // Obtener puntos por fase si hay un torneo activo
+        $puntosPorFase = [];
+        $puntosTotales = 0;
+        if ($latestTournament && $usuarioId && Schema::hasTable('world_cup_bets')) {
+            // Obtener todas las rondas del torneo
+            $rounds = $latestTournament->rounds ?? [];
+            $roundNames = [
+                'Dieciseisavos de Final',
+                'Octavos de Final',
+                'Cuartos de Final',
+                'Semifinales',
+                'Final'
+            ];
+            
+            foreach ($rounds as $roundIndex => $round) {
+                $puntosRonda = WorldCupBet::puntosRonda(
+                    $usuarioId,
+                    $latestTournament->id,
+                    $roundIndex
+                );
+                
+                if ($puntosRonda > 0 || $this->rondaTieneResultados($latestTournament->id, $roundIndex)) {
+                    $roundName = $round['name'] ?? $roundNames[$roundIndex] ?? "Ronda " . ($roundIndex + 1);
+                    $puntosPorFase[] = [
+                        'fase' => $roundIndex + 1,
+                        'nombre' => $roundName,
+                        'puntos' => $puntosRonda,
+                        'round_index' => $roundIndex,
+                    ];
+                    $puntosTotales += $puntosRonda;
+                }
+            }
+        }
+        
+        return view('quiniela.index', compact(
+            'quinielas', 
+            'usuarioId', 
+            'worldCupMatches', 
+            'usuarioBets', 
+            'isTournamentClosed', 
+            'tournamentStatus', 
+            'tournamentHasNoMatches',
+            'activeRoundName',
+            'activeRoundNumber',
+            'puntosPorFase',
+            'puntosTotales',
+            'latestTournament',
+            'hasAllBetsForActiveRound'
+        ));
     }
 
     public function show(Quiniela $quiniela): View
@@ -127,10 +246,39 @@ class QuinielaController extends Controller
             return back()->with('error', 'Las apuestas mundialistas no están disponibles. Ejecuta la migración correspondiente.');
         }
 
+        // Verificar si el torneo está cerrado
+        $latestTournament = null;
+        if (Schema::hasTable('world_cup_tournaments')) {
+            $hasStatusColumn = Schema::hasColumn('world_cup_tournaments', 'status');
+            
+            if ($hasStatusColumn) {
+                $latestTournament = WorldCupTournament::where(function($query) {
+                    $query->where('status', '!=', 'archived')
+                          ->orWhereNull('status');
+                })
+                ->latest()
+                ->first();
+            } else {
+                $latestTournament = WorldCupTournament::latest()->first();
+            }
+
+            if ($latestTournament) {
+                $tournamentStatus = $latestTournament->status ?? 'in_progress';
+                if (in_array($tournamentStatus, ['completed', 'archived'])) {
+                    return back()->with('error', 'El torneo ha finalizado. Las quinielas están cerradas.');
+                }
+            }
+        }
+
         $usuarioId = session('registro_id');
 
         if (!$usuarioId) {
             return back()->with('error', 'Debes iniciar sesión para registrar tus apuestas.');
+        }
+
+        // Validar que el usuario existe en la tabla registros
+        if (!Schema::hasTable('registros') || !\App\Models\Registro::find($usuarioId)) {
+            return back()->with('error', 'Usuario no válido. Por favor, inicia sesión nuevamente.');
         }
 
         $betsInput = $request->input('bets', []);
@@ -139,8 +287,41 @@ class QuinielaController extends Controller
             return back()->with('error', 'Debes seleccionar al menos un enfrentamiento.');
         }
 
-        $worldCupTeams = $this->getWorldCupTeams();
-        $matches = $this->generateWorldCupMatches($worldCupTeams)->keyBy('match_key');
+        // Obtener el torneo activo para asociar las apuestas
+        $activeTournament = null;
+        if (Schema::hasTable('world_cup_tournaments')) {
+            $hasStatusColumn = Schema::hasColumn('world_cup_tournaments', 'status');
+            
+            if ($hasStatusColumn) {
+                $activeTournament = WorldCupTournament::where(function($query) {
+                    $query->where('status', '!=', 'archived')
+                          ->orWhereNull('status');
+                })
+                ->latest()
+                ->first();
+            } else {
+                $activeTournament = WorldCupTournament::latest()->first();
+            }
+        }
+
+        // Validar que exista un torneo activo
+        if (!$activeTournament) {
+            return back()->with('error', 'No hay un torneo activo. Debes generar un torneo primero.');
+        }
+
+        // Obtener el round_index de la ronda activa actual
+        $activeRoundIndex = $this->getActiveRoundIndex($activeTournament);
+        if ($activeRoundIndex === null) {
+            $activeRoundIndex = 0; // Por defecto primera ronda si no se puede determinar
+        }
+
+        // Obtener los partidos de la ronda activa del torneo (igual que en index())
+        $matches = $this->extractMatchesFromTournament($activeTournament, $activeRoundIndex)->keyBy('match_key');
+        
+        // Validar que haya partidos en la ronda activa
+        if ($matches->isEmpty()) {
+            return back()->with('error', 'No hay partidos disponibles en la ronda activa. El torneo aún no tiene enfrentamientos definidos.');
+        }
 
         $expectedMatches = $matches->count();
         $pendingMatches = [];
@@ -154,9 +335,18 @@ class QuinielaController extends Controller
 
             $matchLabel = sprintf('%s vs %s', $match['team_a']['code'], $match['team_b']['code']);
 
-            if (!$betData || $chosenTeam === null || $scoreA === null || $scoreB === null || $scoreA === '' || $scoreB === '') {
+            // Validar que haya seleccionado un ganador y que los marcadores sean numéricos (0 es válido)
+            if (!$betData || $chosenTeam === null) {
                 $pendingMatches[] = $matchLabel;
                 continue;
+            }
+            
+            // Los marcadores pueden ser 0, pero deben ser numéricos
+            if ($scoreA === null || $scoreA === '' || !is_numeric($scoreA)) {
+                $scoreA = 0;
+            }
+            if ($scoreB === null || $scoreB === '' || !is_numeric($scoreB)) {
+                $scoreB = 0;
             }
 
             $validSelections = [
@@ -198,21 +388,58 @@ class QuinielaController extends Controller
 
         foreach ($validatedBets as $matchKey => $data) {
             $match = $data['match'];
+            
+            // Usar el round_index de la ronda activa para todas las apuestas
+            // Si el partido ya existe en match_results, usar su round_index
+            $roundIndex = $activeRoundIndex;
+            if ($activeTournament && Schema::hasTable('world_cup_match_results')) {
+                $matchResult = WorldCupMatchResult::where('tournament_id', $activeTournament->id)
+                    ->where('match_key', $matchKey)
+                    ->first();
+                if ($matchResult) {
+                    $roundIndex = $matchResult->round_index;
+                }
+            }
 
-            WorldCupBet::updateOrCreate(
-                [
+            // Buscar apuesta existente considerando también tournament_id y round_index
+            // para evitar conflictos entre diferentes torneos o rondas
+            $bet = WorldCupBet::where('registro_id', $usuarioId)
+                ->where('match_key', $matchKey)
+                ->where('round_index', $roundIndex)
+                ->when($activeTournament, function($query) use ($activeTournament) {
+                    return $query->where('tournament_id', $activeTournament->id);
+                })
+                ->first();
+
+            if ($bet) {
+                // Actualizar apuesta existente (solo si pertenece al mismo torneo y ronda)
+                if ($bet->tournament_id == $activeTournament->id && $bet->round_index == $roundIndex) {
+                    $bet->update([
+                        'tournament_id' => $activeTournament->id,
+                        'round_index' => $roundIndex,
+                        'stage' => $match['stage'] ?? 'Fase Eliminatoria',
+                        'team_a_code' => $match['team_a']['code'],
+                        'team_b_code' => $match['team_b']['code'],
+                        'selected_code' => $data['selected_code'],
+                        'score_a' => $data['score_a'],
+                        'score_b' => $data['score_b'],
+                    ]);
+                }
+            } else {
+                // Crear nueva apuesta (siempre debe tener tournament_id y round_index)
+                WorldCupBet::create([
                     'registro_id' => $usuarioId,
+                    'tournament_id' => $activeTournament->id,
+                    'round_index' => $roundIndex,
                     'match_key' => $matchKey,
-                ],
-                [
                     'stage' => $match['stage'] ?? 'Fase Eliminatoria',
                     'team_a_code' => $match['team_a']['code'],
                     'team_b_code' => $match['team_b']['code'],
                     'selected_code' => $data['selected_code'],
                     'score_a' => $data['score_a'],
                     'score_b' => $data['score_b'],
-                ]
-            );
+                ]);
+            }
         }
 
         return back()->with('success', 'Tus apuestas del Mundial fueron registradas correctamente.');
@@ -305,19 +532,230 @@ class QuinielaController extends Controller
         ];
     }
 
-    protected function extractMatchesFromTournament(WorldCupTournament $tournament): Collection
+    /**
+     * Obtener el índice de la ronda activa actual
+     * Basado en los resultados del torneo y las quinielas
+     */
+    protected function getActiveRoundIndex(?WorldCupTournament $tournament): ?int
     {
-        $rounds = $tournament->rounds ?? [];
-        $firstRound = collect($rounds)->first() ?? [];
-        $matches = collect($firstRound['matches'] ?? []);
+        if (!$tournament) {
+            return 0; // Por defecto primera ronda
+        }
 
-        return $matches->map(function ($match) {
-            return [
-                'match_key' => $match['id'] ?? $match['match_key'] ?? Str::uuid()->toString(),
-                'team_a' => $this->normalizeStoredTeam($match['team1'] ?? $match['team_a'] ?? null),
-                'team_b' => $this->normalizeStoredTeam($match['team2'] ?? $match['team_b'] ?? null),
-            ];
-        })->filter(fn ($match) => $match['team_a'] && $match['team_b'])->values();
+        // Primero, intentar determinar la ronda activa basándose en world_cup_match_results (más actualizado)
+        if (Schema::hasTable('world_cup_match_results')) {
+            // Obtener todas las rondas con partidos
+            $roundsWithMatches = WorldCupMatchResult::where('tournament_id', $tournament->id)
+                ->select('round_index')
+                ->distinct()
+                ->orderBy('round_index')
+                ->pluck('round_index')
+                ->toArray();
+            
+            if (!empty($roundsWithMatches)) {
+                // Buscar la primera ronda que tenga partidos no jugados
+                foreach ($roundsWithMatches as $roundIndex) {
+                    $totalMatches = WorldCupMatchResult::where('tournament_id', $tournament->id)
+                        ->where('round_index', $roundIndex)
+                        ->count();
+                    
+                    $playedMatches = WorldCupMatchResult::where('tournament_id', $tournament->id)
+                        ->where('round_index', $roundIndex)
+                        ->where('played', true)
+                        ->count();
+                    
+                    // Si no todos los partidos están jugados, esta es la ronda activa
+                    if ($totalMatches > 0 && $playedMatches < $totalMatches) {
+                        return $roundIndex;
+                    }
+                }
+                
+                // Si todas las rondas están completadas, devolver la última
+                return max($roundsWithMatches);
+            }
+        }
+
+        // Si no hay resultados en MySQL, intentar desde el JSON rounds del torneo
+        $rounds = $tournament->rounds ?? [];
+        
+        if (!empty($rounds)) {
+            foreach ($rounds as $roundIndex => $round) {
+                $matches = $round['matches'] ?? [];
+                
+                if (empty($matches)) {
+                    continue; // Saltar rondas sin partidos
+                }
+                
+                // Verificar si todos los partidos están jugados
+                $allPlayed = collect($matches)->every(function ($match) {
+                    return !empty($match['played']);
+                });
+                
+                // Si no todos están jugados, esta es la ronda activa
+                if (!$allPlayed) {
+                    return $roundIndex;
+                }
+            }
+            
+            // Si todas las rondas están completadas, buscar la última ronda
+            $lastRoundIndex = count($rounds) - 1;
+            if ($lastRoundIndex >= 0) {
+                return $lastRoundIndex;
+            }
+        }
+
+        // Si no hay rounds en el JSON, intentar desde las quinielas
+        if (Schema::hasTable('tournament_quinielas')) {
+            // Buscar la quiniela activa
+            $activeQuiniela = \App\Models\TournamentQuiniela::where('tournament_id', $tournament->id)
+                ->where('estado', 'activa')
+                ->first();
+
+            if ($activeQuiniela) {
+                return $activeQuiniela->round_index;
+            }
+
+            // Si no hay quiniela activa, buscar la primera ronda que no esté finalizada
+            $nextQuiniela = \App\Models\TournamentQuiniela::where('tournament_id', $tournament->id)
+                ->where('estado', '!=', 'finalizada')
+                ->orderBy('round_index')
+                ->first();
+
+            if ($nextQuiniela) {
+                return $nextQuiniela->round_index;
+            }
+        }
+
+        // Por defecto, primera ronda
+        return 0;
+    }
+
+    protected function extractMatchesFromTournament(WorldCupTournament $tournament, ?int $roundIndex = null): Collection
+    {
+        $matches = collect();
+        
+        // Si no se especifica roundIndex, usar la ronda activa
+        if ($roundIndex === null) {
+            $roundIndex = $this->getActiveRoundIndex($tournament);
+        }
+
+        // Primero intentar obtener desde world_cup_match_results (MySQL) - más actualizado
+        if (Schema::hasTable('world_cup_match_results')) {
+            $matchResults = WorldCupMatchResult::where('tournament_id', $tournament->id)
+                ->where('round_index', $roundIndex)
+                ->orderBy('order')
+                ->get();
+
+            if ($matchResults->isNotEmpty()) {
+                // Obtener información de continentes desde world_cup_teams
+                $teamCodes = $matchResults->pluck('team1_code')
+                    ->merge($matchResults->pluck('team2_code'))
+                    ->filter()
+                    ->unique();
+
+                $teamsData = [];
+                if (Schema::hasTable('world_cup_teams') && $teamCodes->isNotEmpty()) {
+                    $teamsData = WorldCupTeam::whereIn('code', $teamCodes)
+                        ->get()
+                        ->keyBy('code');
+                }
+
+                // Obtener nombre de la ronda para el stage
+                $roundNames = [
+                    'Dieciseisavos de Final',
+                    'Octavos de Final',
+                    'Cuartos de Final',
+                    'Semifinales',
+                    'Final'
+                ];
+                $roundName = $roundNames[$roundIndex] ?? 'Fase Eliminatoria';
+
+                $matches = $matchResults->map(function ($matchResult) use ($teamsData, $roundName) {
+                    $team1Data = $teamsData->get($matchResult->team1_code);
+                    $team2Data = $teamsData->get($matchResult->team2_code);
+
+                    return [
+                        'match_key' => $matchResult->match_key,
+                        'stage' => $roundName,
+                        'team_a' => [
+                            'name' => $matchResult->team1_name ?? $team1Data->name ?? null,
+                            'code' => $matchResult->team1_code,
+                            'ranking' => $team1Data->fifa_ranking ?? null,
+                            'continent' => $team1Data->continent ?? null,
+                            'flag_url' => $team1Data->flag_url ?? null,
+                        ],
+                        'team_b' => [
+                            'name' => $matchResult->team2_name ?? $team2Data->name ?? null,
+                            'code' => $matchResult->team2_code,
+                            'ranking' => $team2Data->fifa_ranking ?? null,
+                            'continent' => $team2Data->continent ?? null,
+                            'flag_url' => $team2Data->flag_url ?? null,
+                        ],
+                    ];
+                })->filter(fn ($match) => $match['team_a']['code'] && $match['team_b']['code'])->values();
+            }
+        }
+
+        // Si no hay resultados en MySQL, obtener desde el JSON rounds del torneo
+        if ($matches->isEmpty()) {
+            $rounds = $tournament->rounds ?? [];
+            $targetRound = collect($rounds)->get($roundIndex) ?? [];
+            $roundMatches = collect($targetRound['matches'] ?? []);
+
+            if ($roundMatches->isNotEmpty()) {
+                // Obtener información de equipos desde el JSON teams del torneo
+                $tournamentTeams = collect($tournament->teams ?? [])->keyBy('code');
+
+                // Obtener nombre de la ronda para el stage
+                $roundNames = [
+                    'Dieciseisavos de Final',
+                    'Octavos de Final',
+                    'Cuartos de Final',
+                    'Semifinales',
+                    'Final'
+                ];
+                $roundName = $targetRound['name'] ?? $roundNames[$roundIndex] ?? 'Fase Eliminatoria';
+
+                $matches = $roundMatches->map(function ($match, $index) use ($tournamentTeams, $roundIndex, $roundName) {
+                    $team1 = $match['team1'] ?? $match['team_a'] ?? null;
+                    $team2 = $match['team2'] ?? $match['team_b'] ?? null;
+
+                    if (!$team1 || !$team2) {
+                        return null;
+                    }
+
+                    $team1Code = $team1['code'] ?? null;
+                    $team2Code = $team2['code'] ?? null;
+
+                    // Buscar información completa del equipo desde tournament teams o usar la del match
+                    $team1Data = $tournamentTeams->get($team1Code) ?? $team1;
+                    $team2Data = $tournamentTeams->get($team2Code) ?? $team2;
+
+                    $matchKey = $match['id'] ?? $match['match_key'] ?? sprintf('round-%d-match-%d', $roundIndex, $index);
+
+                    return [
+                        'match_key' => $matchKey,
+                        'stage' => $roundName,
+                        'team_a' => [
+                            'name' => $team1Data['name'] ?? $team1['name'] ?? null,
+                            'code' => $team1Code,
+                            'ranking' => $team1Data['ranking'] ?? $team1['ranking'] ?? null,
+                            'continent' => $team1Data['continent'] ?? $team1['continent'] ?? null,
+                            'flag_url' => $team1Data['flag_url'] ?? $team1['flag_url'] ?? null,
+                        ],
+                        'team_b' => [
+                            'name' => $team2Data['name'] ?? $team2['name'] ?? null,
+                            'code' => $team2Code,
+                            'ranking' => $team2Data['ranking'] ?? $team2['ranking'] ?? null,
+                            'continent' => $team2Data['continent'] ?? $team2['continent'] ?? null,
+                            'flag_url' => $team2Data['flag_url'] ?? $team2['flag_url'] ?? null,
+                        ],
+                    ];
+                })->filter()->values();
+            }
+        }
+
+        return $matches;
     }
 
     protected function normalizeStoredTeam($team): ?array
@@ -332,5 +770,95 @@ class QuinielaController extends Controller
             'ranking' => $team['ranking'] ?? null,
             'continent' => $team['continent'] ?? null,
         ];
+    }
+
+    /**
+     * Mostrar resultados del torneo por ronda y totales
+     */
+    public function resultadosTorneo()
+    {
+        $usuarioId = session('registro_id');
+        
+        if (!$usuarioId) {
+            return redirect()->route('quinielas.index')
+                ->with('error', 'Debes iniciar sesión para ver tus resultados.');
+        }
+
+        $latestTournament = null;
+        if (Schema::hasTable('world_cup_tournaments')) {
+            $hasStatusColumn = Schema::hasColumn('world_cup_tournaments', 'status');
+            
+            if ($hasStatusColumn) {
+                $latestTournament = WorldCupTournament::where(function($query) {
+                    $query->where('status', '!=', 'archived')
+                          ->orWhereNull('status');
+                })
+                ->latest()
+                ->first();
+            } else {
+                $latestTournament = WorldCupTournament::latest()->first();
+            }
+        }
+
+        if (!$latestTournament) {
+            return redirect()->route('quinielas.index')
+                ->with('error', 'No hay torneo activo.');
+        }
+
+        // Obtener quinielas del torneo
+        $quinielas = collect();
+        if (Schema::hasTable('tournament_quinielas')) {
+            $quinielas = \App\Models\TournamentQuiniela::where('tournament_id', $latestTournament->id)
+                ->orderBy('round_index')
+                ->get();
+        }
+
+        // Calcular puntos por ronda y totales
+        $resultadosPorRonda = [];
+        $puntosTotales = 0;
+
+        foreach ($quinielas as $quiniela) {
+            $puntosRonda = \App\Models\WorldCupBet::puntosRonda(
+                $usuarioId,
+                $latestTournament->id,
+                $quiniela->round_index
+            );
+
+            $resultadosPorRonda[] = [
+                'ronda' => $quiniela->round_name,
+                'round_index' => $quiniela->round_index,
+                'estado' => $quiniela->estado,
+                'puntos' => $puntosRonda,
+            ];
+
+            $puntosTotales += $puntosRonda;
+        }
+
+        // Si no hay quinielas creadas aún, calcular desde las apuestas directamente
+        if ($quinielas->isEmpty() && Schema::hasTable('world_cup_bets')) {
+            $puntosTotales = \App\Models\WorldCupBet::puntosTotales($usuarioId, $latestTournament->id);
+        }
+
+        return view('quiniela.resultados-torneo', compact(
+            'latestTournament',
+            'resultadosPorRonda',
+            'puntosTotales',
+            'quinielas'
+        ));
+    }
+
+    /**
+     * Verificar si una ronda tiene resultados
+     */
+    protected function rondaTieneResultados(int $tournamentId, int $roundIndex): bool
+    {
+        if (!Schema::hasTable('world_cup_match_results')) {
+            return false;
+        }
+        
+        return WorldCupMatchResult::where('tournament_id', $tournamentId)
+            ->where('round_index', $roundIndex)
+            ->where('played', true)
+            ->exists();
     }
 }

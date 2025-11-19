@@ -98,8 +98,8 @@
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="{{ route('auth.dashboard') }}">
-                                <i class="fas fa-user-circle me-2"></i> 
+                            <a class="nav-link {{ request()->routeIs('auth.dashboard') ? 'nav-link-active' : '' }}" href="{{ route('auth.dashboard') }}">
+                                <i class="fas fa-user-circle me-1"></i> 
                                 <span class="fw-semibold">{{ session('usuario_registrado') }}</span>
                             </a>
                         </li>
@@ -136,5 +136,6 @@
         </footer>
     </div>
 
+    @stack('scripts')
 </body>
 </html>

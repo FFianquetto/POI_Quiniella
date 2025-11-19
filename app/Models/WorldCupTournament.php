@@ -28,4 +28,14 @@ class WorldCupTournament extends Model
     {
         return $this->hasMany(WorldCupMatchResult::class, 'tournament_id');
     }
+
+    public function tournamentQuinielas()
+    {
+        return $this->hasMany(TournamentQuiniela::class, 'tournament_id');
+    }
+
+    public function bets()
+    {
+        return $this->hasMany(WorldCupBet::class, 'tournament_id');
+    }
 }

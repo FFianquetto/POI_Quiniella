@@ -6,20 +6,40 @@
 
 @section('content')
 <div class="container-fluid">
+    <!-- Header de la página -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="world-cup-header chat-header">
+                <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+                    <div>
+                        <h1 class="mb-1">
+                            <i class="fas fa-comments me-3"></i>
+                            Mis Chats
+                        </h1>
+                        <p class="mb-0">
+                            Mantén contacto con otros usuarios y participa en grupos. Inicia conversaciones y comparte contenido con la comunidad.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="row">
         <div class="col-sm-12">
-            <div class="card">
-                <div class="card-header">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <span id="card_title">
-                            {{ __('Mis Chats') }}
+            <div class="card mundial-card">
+                <div class="card-header bg-success">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="text-white">
+                            <i class="fas fa-comments me-2"></i>
+                            Mis Chats
                         </span>
                         <div>
-                            <a href="{{ route('chat.buscar') }}" class="btn btn-primary btn-sm me-2">
-                                <i class="fa fa-plus"></i> Nuevo Chat
+                            <a href="{{ route('chat.buscar') }}" class="btn btn-light btn-sm me-2">
+                                <i class="fas fa-plus me-1"></i> Nuevo Chat
                             </a>
-                            <a href="{{ route('chat.grupo.create') }}" class="btn btn-success btn-sm">
-                                <i class="fa fa-users"></i> Crear Grupo
+                            <a href="{{ route('chat.grupo.create') }}" class="btn btn-warning btn-sm">
+                                <i class="fas fa-users me-1"></i> Crear Grupo
                             </a>
                         </div>
                     </div>

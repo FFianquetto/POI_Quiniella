@@ -139,20 +139,21 @@
                     <h4 class="mb-0">
                         <i class="fas fa-sitemap me-2"></i>
                         Bracket del Torneo
+                        <span id="currentPhaseBadge" class="badge bg-success ms-2" style="display: none;">
+                            <span id="currentPhaseText">Fase 1</span>
+                        </span>
                     </h4>
                     <div class="d-flex gap-2">
                         <button type="button" class="btn btn-sm btn-outline-success" id="simulateCurrentRound">
                             <i class="fas fa-forward-step me-1"></i>
                             Simular Fase Actual
                         </button>
-                        <button type="button" class="btn btn-sm btn-outline-warning" id="generateRandomResults">
-                            <i class="fas fa-dice me-1"></i>
-                            Resultados Aleatorios
-                        </button>
+                        @if(isset($isTournamentCompleted) && $isTournamentCompleted)
                         <button type="button" class="btn btn-sm btn-outline-light" id="backToSelection">
                             <i class="fas fa-arrow-left me-1"></i>
                             Volver a Selección
                         </button>
+                        @endif
                     </div>
                 </div>
                 <div class="card-body">
@@ -217,6 +218,23 @@
                                 <h5>Selección Favorita</h5>
                                 <h3 id="favoriteTeamLabel" class="text-uppercase">Sin definir</h3>
                             </div>
+                        </div>
+                    </div>
+                    <div class="row mt-3" id="finalizeTournamentRow" style="display: none;">
+                        <div class="col-12">
+                            <div class="d-flex justify-content-center">
+                                <form action="{{ route('torneo.finalize') }}" method="POST" id="finalizeTournamentForm">
+                                    @csrf
+                                    <input type="hidden" name="tournament_uuid" id="finalizeTournamentUuid" value="">
+                                    <button type="submit" class="btn btn-lg btn-warning" id="finalizeTournamentButton">
+                                        <i class="fas fa-check-circle me-2"></i>
+                                        Finalizar Torneo y Crear Nuevo
+                                    </button>
+                                </form>
+                            </div>
+                            <p class="text-center text-white-50 mt-2 mb-0">
+                                <small>Al finalizar este torneo podrás generar uno nuevo desde cero.</small>
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -304,6 +322,13 @@
     </div>
 </div>
 
+<script src="{{ asset('js/tournament/constants.js') }}"></script>
+<script src="{{ asset('js/tournament/state.js') }}"></script>
+<script src="{{ asset('js/tournament/storage.js') }}"></script>
+<script src="{{ asset('js/tournament/notifications.js') }}"></script>
+<script src="{{ asset('js/tournament/achievements.js') }}"></script>
+<script src="{{ asset('js/tournament/api.js') }}"></script>
+<script src="{{ asset('js/tournament/controller.js') }}"></script>
 <script src="{{ asset('js/tournament-simulator.js') }}"></script>
 @endsection
 

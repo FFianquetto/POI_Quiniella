@@ -35,6 +35,7 @@ Route::get('/quinielas/{quiniela}', [QuinielaController::class, 'show'])->name('
 Route::post('/quinielas/{quiniela}/participar', [QuinielaController::class, 'participar'])->name('quinielas.participar');
 Route::post('/quinielas/{quiniela}/prediccion', [QuinielaController::class, 'hacerPrediccion'])->name('quinielas.prediccion');
 Route::post('/quinielas/mundial/apostar', [QuinielaController::class, 'apostarMundial'])->name('quinielas.mundial.apostar');
+Route::get('/quinielas/torneo/resultados', [QuinielaController::class, 'resultadosTorneo'])->name('quinielas.torneo.resultados');
 
 // Rutas para administración
 Route::prefix('admin')->group(function () {
@@ -80,3 +81,4 @@ Route::post('/torneo/simulate-match', [TorneoController::class, 'simulateMatch']
 Route::get('/torneo/stats', [TorneoController::class, 'getStats'])->name('torneo.stats');
 Route::post('/torneo/store', [TorneoController::class, 'store'])->name('torneo.store');
 Route::patch('/torneo/{uuid}', [TorneoController::class, 'update'])->name('torneo.update');
+Route::post('/torneo/finalize', [TorneoController::class, 'finalize'])->name('torneo.finalize');

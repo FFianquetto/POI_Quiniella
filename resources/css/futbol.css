@@ -379,6 +379,14 @@ footer:hover::before {
     background: linear-gradient(130deg, rgba(26, 118, 226, 0.92), rgba(27, 173, 104, 0.9));
 }
 
+.dashboard-header {
+    background: linear-gradient(130deg, rgba(27, 173, 104, 0.92), rgba(26, 118, 226, 0.9));
+}
+
+.chat-header {
+    background: linear-gradient(130deg, rgba(26, 118, 226, 0.92), rgba(27, 173, 104, 0.9));
+}
+
 .world-cup-badge .badge {
     border-radius: 999px;
     padding: 0.75rem 1.4rem;
