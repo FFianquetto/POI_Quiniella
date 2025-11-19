@@ -3,11 +3,10 @@
     const constants = namespace.constants;
     const stateModule = namespace.state;
     const createSyncService = namespace.createSyncService;
-    const createAchievementManager = namespace.createAchievementManager;
     const showNotification = namespace.showNotification;
 
-    if (!constants || !stateModule || !createSyncService || !createAchievementManager || !showNotification) {
-        throw new Error('controller.js requiere que constants, state, api, achievements y notifications se carguen previamente.');
+    if (!constants || !stateModule || !createSyncService || !showNotification) {
+        throw new Error('controller.js requiere que constants, state, api y notifications se carguen previamente.');
     }
 
     class TournamentController {
@@ -16,7 +15,6 @@
             this.hasHydratedInitialTournament = false;
             this.worldCupTeamsDataset = [];
             this.syncService = null;
-            this.achievementManager = null;
 
             this.cacheDomReferences();
         }
@@ -31,30 +29,20 @@
             this.tournamentInfo = this.doc.getElementById('tournamentInfo');
             this.favoriteTeamSelect = this.doc.getElementById('favoriteTeam');
             this.favoriteTeamFeedback = this.doc.getElementById('favoriteTeamFeedback');
-            this.rewardPanel = this.doc.getElementById('rewardPanel');
-            this.rewardList = this.doc.getElementById('rewardList');
-            this.rewardMessage = this.doc.getElementById('rewardMessage');
             this.selectAllBtn = this.doc.getElementById('selectAllTeams');
             this.teamSelectionPanel = this.doc.getElementById('teamSelectionPanel');
             this.tournamentBracketPanel = this.doc.getElementById('tournamentBracketPanel');
             this.backToSelectionBtn = this.doc.getElementById('backToSelection');
             this.simulateCurrentRoundBtn = this.doc.getElementById('simulateCurrentRound');
-            this.favoriteTeamLabel = this.doc.getElementById('favoriteTeamLabel');
+            this.simulateWithArgentinaWinnerBtn = this.doc.getElementById('simulateWithArgentinaWinner');
+            this.championTeamLabel = this.doc.getElementById('championTeamLabel');
             this.currentRoundLabel = this.doc.getElementById('currentRoundName');
-            this.shareAchievementsBtn = this.doc.getElementById('shareAchievements');
-            this.resetAchievementsBtn = this.doc.getElementById('resetAchievements');
             this.teamsDataElement = this.doc.getElementById('worldCupTeamsData');
             this.totalTeamsElement = this.doc.getElementById('totalTeams');
             this.totalRoundsElement = this.doc.getElementById('totalRounds');
             this.totalMatchesElement = this.doc.getElementById('totalMatches');
             this.tournamentStatusElement = this.doc.getElementById('tournamentStatus');
             this.selectedTeamDisplay = this.doc.getElementById('selectedTeamDisplay');
-            this.badgeGrid = this.doc.getElementById('badgeGrid');
-            this.achievementTimeline = this.doc.getElementById('achievementTimeline');
-            this.userMedalPoints = this.doc.getElementById('userMedalPoints');
-            this.achievementTierLabel = this.doc.getElementById('achievementTierLabel');
-            this.medalProgressBar = this.doc.getElementById('medalProgressBar');
-            this.nextBadgeMessage = this.doc.getElementById('nextBadgeMessage');
         }
 
         init() {
@@ -67,21 +55,7 @@
             this.bindEventListeners();
             this.applyInitialStyles();
             this.syncFavoriteOptions();
-            this.updateFavoriteTeamDisplay();
-
-            this.achievementManager = createAchievementManager({
-                elements: {
-                    pointsElement: this.userMedalPoints,
-                    tierLabel: this.achievementTierLabel,
-                    progressBar: this.medalProgressBar,
-                    nextBadgeMessage: this.nextBadgeMessage,
-                    badgeGrid: this.badgeGrid,
-                    timeline: this.achievementTimeline
-                },
-                showNotification
-            });
-
-            this.achievementManager.render();
+            this.updateChampionDisplay();
             this.hydrateInitialTournament();
             this.exposeGlobalActions();
         }
@@ -129,15 +103,13 @@
             if (this.simulateCurrentRoundBtn) {
                 this.simulateCurrentRoundBtn.addEventListener('click', () => this.simulateCurrentRound());
             }
+            if (this.simulateWithArgentinaWinnerBtn) {
+                this.simulateWithArgentinaWinnerBtn.addEventListener('click', () => this.simulateCurrentRoundWithArgentinaWinner());
+            }
             if (this.openSimulatorBtn) {
                 this.openSimulatorBtn.addEventListener('click', () => this.openCurrentTournament(true));
             }
-            if (this.shareAchievementsBtn) {
-                this.shareAchievementsBtn.addEventListener('click', () => this.achievementManager.shareAchievements());
-            }
-            if (this.resetAchievementsBtn) {
-                this.resetAchievementsBtn.addEventListener('click', () => this.achievementManager.resetAchievements());
-            }
+            // Sistema de achievements removido - ya no se requiere
 
             this.doc.querySelectorAll('.team-checkbox-horizontal').forEach((checkbox) => {
                 checkbox.addEventListener('change', () => {
@@ -176,49 +148,18 @@
         }
 
         syncFavoriteOptions() {
-            if (!this.favoriteTeamSelect) {
-                return;
-            }
-
-            const currentValue = this.favoriteTeamSelect.value;
-            this.favoriteTeamSelect.innerHTML = `
-                <option value="">-- Elige una selección --</option>
-                ${this.worldCupTeamsDataset
-                    .map((team) => `<option value="${team.code}">${team.name} (${team.code})</option>`)
-                    .join('')}
-            `;
-
-            if (currentValue && this.worldCupTeamsDataset.some((team) => team.code === currentValue)) {
-                this.favoriteTeamSelect.value = currentValue;
-            }
+            // País favorito removido - ya no se requiere
         }
 
-        updateFavoriteTeamDisplay() {
+        updateChampionDisplay() {
             const tournamentData = stateModule.getTournamentData();
 
-            if (this.favoriteTeamLabel) {
-                if (tournamentData.favoriteTeamCode && tournamentData.favoriteTeamName) {
-                    this.favoriteTeamLabel.textContent = `${tournamentData.favoriteTeamName} (${tournamentData.favoriteTeamCode})`;
-                } else if (tournamentData.favoriteTeamCode) {
-                    this.favoriteTeamLabel.textContent = tournamentData.favoriteTeamCode;
+            if (this.championTeamLabel) {
+                if (tournamentData.rewards && tournamentData.rewards.champion) {
+                    const champion = tournamentData.rewards.champion;
+                    this.championTeamLabel.textContent = `${champion.name} (${champion.code})`;
                 } else {
-                    this.favoriteTeamLabel.textContent = 'Sin definir';
-                }
-            }
-
-            if (this.selectedTeamDisplay) {
-                const pill = this.selectedTeamDisplay.querySelector('.selected-team-pill');
-                if (pill) {
-                    if (tournamentData.favoriteTeamCode && tournamentData.favoriteTeamName) {
-                        pill.textContent = `${tournamentData.favoriteTeamName} (${tournamentData.favoriteTeamCode})`;
-                        pill.classList.add('bg-success', 'text-white');
-                    } else if (tournamentData.favoriteTeamCode) {
-                        pill.textContent = tournamentData.favoriteTeamCode;
-                        pill.classList.add('bg-success', 'text-white');
-                    } else {
-                        pill.textContent = 'Selecciona un favorito';
-                        pill.classList.remove('bg-success', 'text-white');
-                    }
+                    this.championTeamLabel.textContent = 'Pendiente';
                 }
             }
         }
@@ -414,23 +355,14 @@
                 tournamentData.currentMatch = currentMatchIndex;
             }
 
-            if (this.favoriteTeamSelect && tournamentData.favoriteTeamCode) {
-                this.favoriteTeamSelect.value = tournamentData.favoriteTeamCode;
-            }
-
-            this.updateFavoriteTeamDisplay();
+            // País favorito removido - ya no se requiere
 
             if (hasRounds) {
                 this.displayBracket();
                 this.showTournamentInfo(this.determineTournamentStatus());
             }
 
-            if (tournamentData.rewards && tournamentData.rewards.champion) {
-                this.rewardPanel.style.display = 'block';
-                this.updateRewardsUI();
-            } else {
-                this.resetRewardsPanel();
-            }
+            this.updateChampionDisplay();
 
             // Si hay un torneo con UUID, siempre bloquear el botón (incluso sin rounds)
             if (tournamentData.uuid) {
@@ -495,29 +427,7 @@
                 return;
             }
 
-            const favoriteCode = this.favoriteTeamSelect.value;
-            if (!favoriteCode) {
-                showNotification('Selecciona tu equipo favorito para activar el sistema de recompensas.', 'warning');
-                this.favoriteTeamSelect.focus();
-                this.favoriteTeamSelect.classList.add('is-invalid');
-                if (this.favoriteTeamFeedback) {
-                    this.favoriteTeamFeedback.classList.remove('d-none');
-                }
-
-                const clearInvalidState = () => {
-                    this.favoriteTeamSelect.classList.remove('is-invalid');
-                    if (this.favoriteTeamFeedback) {
-                        this.favoriteTeamFeedback.classList.add('d-none');
-                    }
-                    this.favoriteTeamSelect.removeEventListener('change', clearInvalidState);
-                };
-
-                this.favoriteTeamSelect.addEventListener('change', clearInvalidState);
-                return;
-            }
-
             const teams = this.worldCupTeamsDataset.map((team) => ({ ...team }));
-            const favoriteTeam = teams.find((team) => team.code === favoriteCode) || null;
 
             const baseState = stateModule.createInitialTournamentState({
                 status: 'in_progress'
@@ -527,18 +437,13 @@
             const currentState = stateModule.getTournamentData();
 
             this.generateBracket(teams, { shuffle: true });
-            currentState.favoriteTeamCode = favoriteCode;
-            currentState.favoriteTeamName = favoriteTeam ? favoriteTeam.name : null;
+            currentState.favoriteTeamCode = null;
+            currentState.favoriteTeamName = null;
             currentState.status = 'in_progress';
-
-            this.favoriteTeamSelect.classList.remove('is-invalid');
-            if (this.favoriteTeamFeedback) {
-                this.favoriteTeamFeedback.classList.add('d-none');
-            }
 
             this.lockGenerateButton('Torneo en curso. Completa todos los partidos para generar uno nuevo.');
             this.showTournamentInfo('En Marcha');
-            this.updateFavoriteTeamDisplay();
+            this.updateChampionDisplay();
             this.resetRewardsPanel();
             this.switchToBracketView();
             
@@ -719,7 +624,7 @@
                 return;
             }
 
-            const result = this.resolveMatch(match.team1, match.team2);
+            const result = this.resolveMatch(match.team1, match.team2, options.forceArgentinaWin);
             match.score1 = result.score1;
             match.score2 = result.score2;
             match.winner = result.winner;
@@ -742,7 +647,30 @@
             this.syncService.syncTournamentState();
         }
 
-        resolveMatch(team1, team2) {
+        resolveMatch(team1, team2, forceArgentinaWin = false) {
+            // Si se fuerza que Argentina gane y Argentina está en el partido, hacer que gane
+            if (forceArgentinaWin) {
+                const isTeam1Argentina = team1.code === 'ARG' || team1.name === 'Argentina';
+                const isTeam2Argentina = team2.code === 'ARG' || team2.name === 'Argentina';
+                
+                if (isTeam1Argentina || isTeam2Argentina) {
+                    const argentinaTeam = isTeam1Argentina ? team1 : team2;
+                    const opponentTeam = isTeam1Argentina ? team2 : team1;
+                    
+                    // Generar un marcador donde Argentina gana
+                    const argentinaGoals = 2 + Math.floor(Math.random() * 3); // 2-4 goles
+                    const opponentGoals = Math.min(argentinaGoals - 1, Math.floor(Math.random() * 2)); // 0-1 goles, siempre menos que Argentina
+                    
+                    return {
+                        score1: isTeam1Argentina ? argentinaGoals : opponentGoals,
+                        score2: isTeam1Argentina ? opponentGoals : argentinaGoals,
+                        winner: argentinaTeam,
+                        decidedByPenalties: false,
+                        penaltyScore: null
+                    };
+                }
+            }
+
             const random1 = Math.random() * (team1.ranking + 1);
             const random2 = Math.random() * (team2.ranking + 1);
 
@@ -759,7 +687,7 @@
                 };
             }
 
-            const penaltyResult = this.resolvePenalties(team1, team2);
+            const penaltyResult = this.resolvePenalties(team1, team2, forceArgentinaWin);
             return {
                 score1: goals1,
                 score2: goals2,
@@ -769,7 +697,27 @@
             };
         }
 
-        resolvePenalties(team1, team2) {
+        resolvePenalties(team1, team2, forceArgentinaWin = false) {
+            // Si se fuerza que Argentina gane y Argentina está en el partido, hacer que gane en penales
+            if (forceArgentinaWin) {
+                const isTeam1Argentina = team1.code === 'ARG' || team1.name === 'Argentina';
+                const isTeam2Argentina = team2.code === 'ARG' || team2.name === 'Argentina';
+                
+                if (isTeam1Argentina || isTeam2Argentina) {
+                    const argentinaTeam = isTeam1Argentina ? team1 : team2;
+                    const opponentTeam = isTeam1Argentina ? team2 : team1;
+                    
+                    const winnerScore = 5;
+                    const loserScore = 3 + Math.floor(Math.random() * 2); // 3-4 goles
+                    
+                    return {
+                        winner: argentinaTeam,
+                        loser: opponentTeam,
+                        score: `${winnerScore}-${loserScore}`
+                    };
+                }
+            }
+
             const totalRanking = team1.ranking + team2.ranking;
             const probabilityTeam1 = team1.ranking / totalRanking;
             const winner = Math.random() < probabilityTeam1 ? team1 : team2;
@@ -861,7 +809,7 @@
                 return;
             }
 
-            const result = this.resolveMatch(tournamentData.thirdPlaceMatch.team1, tournamentData.thirdPlaceMatch.team2);
+            const result = this.resolveMatch(tournamentData.thirdPlaceMatch.team1, tournamentData.thirdPlaceMatch.team2, options.forceArgentinaWin);
             Object.assign(tournamentData.thirdPlaceMatch, {
                 score1: result.score1,
                 score2: result.score2,
@@ -929,7 +877,7 @@
             };
             tournamentData.status = 'completed';
 
-            this.updateRewardsUI();
+            this.updateChampionDisplay();
             this.showTournamentInfo('Copa Finalizada');
             this.syncService.syncTournamentState();
             
@@ -945,47 +893,10 @@
                 }
                 : null;
 
-            this.achievementManager.processTournamentResults(tournamentData.rewards, favoriteTeam);
+            // Sistema de achievements removido - ya no se requiere
         }
 
-        updateRewardsUI() {
-            const tournamentData = stateModule.getTournamentData();
-            const rewards = tournamentData.rewards;
-
-            if (!rewards.champion) {
-                this.rewardPanel.style.display = 'none';
-                return;
-            }
-
-            const favoriteCode = tournamentData.favoriteTeamCode;
-            this.rewardPanel.style.display = 'block';
-
-            const rewardItems = [
-                { label: 'Medalla de Oro', position: 'Campeón', team: rewards.champion },
-                { label: 'Medalla de Plata', position: 'Subcampeón', team: rewards.runnerUp },
-                { label: 'Medalla de Bronce', position: 'Tercer Lugar', team: rewards.thirdPlace },
-                { label: 'Medalla de Cobre', position: 'Cuarto Lugar', team: rewards.fourthPlace }
-            ];
-
-            this.rewardList.innerHTML = rewardItems
-                .map((item) => {
-                    const isFavorite = item.team && item.team.code === favoriteCode;
-                    return `
-                    <li class="list-group-item reward-list-item d-flex justify-content-between align-items-center">
-                        <span>${item.position}: ${item.team ? `${item.team.name} (${item.team.code})` : 'Por definir'}</span>
-                        <span class="badge bg-warning text-dark">${item.label}${isFavorite ? ' ⭐' : ''}</span>
-                    </li>
-                `;
-                })
-                .join('');
-
-            const favoriteReward = rewardItems.find((item) => item.team && item.team.code === favoriteCode);
-            if (favoriteReward) {
-                this.rewardMessage.textContent = `¡Tu selección obtuvo ${favoriteReward.position}! Recompensa desbloqueada: ${favoriteReward.label}.`;
-            } else {
-                this.rewardMessage.textContent = 'Tu selección favorita no alcanzó el podio esta vez. ¡Inténtalo de nuevo!';
-            }
-        }
+        // Tabla de recompensas removida - ya no se requiere
 
         showTournamentInfo(status) {
             const tournamentData = stateModule.getTournamentData();
@@ -1043,7 +954,7 @@
                 currentPhaseBadge.style.display = 'none';
             }
 
-            this.updateFavoriteTeamDisplay();
+            this.updateChampionDisplay();
             if (this.tournamentInfo) {
                 this.tournamentInfo.style.display = 'block';
             }
@@ -1155,9 +1066,7 @@
             if (this.tournamentInfo) {
                 this.tournamentInfo.style.display = 'none';
             }
-            if (this.rewardPanel) {
-                this.rewardPanel.style.display = 'none';
-            }
+            // Tabla de recompensas removida - ya no se requiere
             if (this.teamSelectionPanel) {
                 this.teamSelectionPanel.style.display = 'block';
             }
@@ -1221,6 +1130,51 @@
             }
         }
 
+        simulateCurrentRoundWithArgentinaWinner() {
+            const tournamentData = stateModule.getTournamentData();
+            if (!tournamentData.rounds.length || !tournamentData.rounds[0].matches.length) {
+                showNotification('Primero debes generar un torneo.', 'warning');
+                return;
+            }
+
+            const roundIndex = Math.min(tournamentData.currentRound, constants.ROUND_NAMES.length - 1);
+            const round = tournamentData.rounds[roundIndex];
+
+            if (!round || !round.matches.length) {
+                if (tournamentData.thirdPlaceMatch && !tournamentData.thirdPlaceMatch.played) {
+                    this.simulateThirdPlaceMatch({ auto: true, forceArgentinaWin: true });
+                    showNotification('¡Partido por el tercer lugar simulado automáticamente!', 'success');
+                } else {
+                    showNotification('No hay partidos pendientes en esta fase.', 'info');
+                }
+                return;
+            }
+
+            const pendingMatches = round.matches.filter((match) => !match.played);
+
+            if (!pendingMatches.length) {
+                if (roundIndex === constants.ROUND_NAMES.length - 1 && tournamentData.thirdPlaceMatch && !tournamentData.thirdPlaceMatch.played) {
+                    this.simulateThirdPlaceMatch({ auto: true, forceArgentinaWin: true });
+                    showNotification('¡Partido por el tercer lugar simulado automáticamente!', 'success');
+                } else {
+                    showNotification('Esta fase ya fue simulada.', 'info');
+                }
+                return;
+            }
+
+            round.matches.forEach((match, idx) => {
+                if (!match.played) {
+                    this.runMatch(roundIndex, idx, { auto: true, forceArgentinaWin: true });
+                }
+            });
+
+            showNotification(`¡${constants.ROUND_NAMES[roundIndex]} de la Copa simulada automáticamente! (Argentina gana si participa)`, 'success');
+
+            if (roundIndex === constants.ROUND_NAMES.length - 1 && tournamentData.thirdPlaceMatch && !tournamentData.thirdPlaceMatch.played) {
+                this.simulateThirdPlaceMatch({ auto: true, forceArgentinaWin: true });
+            }
+        }
+
         simulateAllMatches() {
             const tournamentData = stateModule.getTournamentData();
             tournamentData.currentRound = 0;
@@ -1245,10 +1199,10 @@
 
         clearAllTeams() {
             if (this.favoriteTeamSelect) {
-                this.favoriteTeamSelect.value = '';
+                // País favorito removido - ya no se requiere
             }
             this.syncFavoriteOptions();
-            this.updateFavoriteTeamDisplay();
+            this.updateChampionDisplay();
 
             if (this.bracketContainer) {
                 this.bracketContainer.innerHTML = `
@@ -1271,15 +1225,7 @@
         }
 
         resetRewardsPanel() {
-            if (this.rewardPanel) {
-                this.rewardPanel.style.display = 'none';
-            }
-            if (this.rewardList) {
-                this.rewardList.innerHTML = '';
-            }
-            if (this.rewardMessage) {
-                this.rewardMessage.textContent = 'Aún no se han definido las recompensas. Completa el torneo para conocer tus medallas.';
-            }
+            // Tabla de recompensas removida - ya no se requiere
         }
     }
 

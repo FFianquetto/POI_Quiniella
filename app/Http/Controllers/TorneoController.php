@@ -6,6 +6,9 @@ use App\Models\WorldCupMatchResult;
 use App\Models\WorldCupTeam;
 use App\Models\WorldCupTournament;
 use App\Models\TournamentQuiniela;
+use App\Models\UserTournamentFavorite;
+use App\Models\UserTotalPoint;
+use App\Models\WorldCupUserPoint;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -339,7 +342,15 @@ class TorneoController extends Controller
 
         if (array_key_exists('results', $payload)) {
             $existingResults = $tournament->results ?? [];
-            $updates['results'] = array_merge($existingResults, $payload['results'] ?? []);
+            $newResults = $payload['results'] ?? [];
+            // Asegurar que rewards se guarde correctamente
+            if (isset($newResults['rewards'])) {
+                $existingResults['rewards'] = $newResults['rewards'];
+            }
+            if (isset($newResults['third_place'])) {
+                $existingResults['third_place'] = $newResults['third_place'];
+            }
+            $updates['results'] = $existingResults;
         }
 
         if (array_key_exists('status', $payload)) {
@@ -361,12 +372,20 @@ class TorneoController extends Controller
             $this->checkAndUpdateCompletedRounds($tournament, $payload['rounds']);
         }
 
-        if (($tournament->status ?? 'in_progress') !== 'completed' && $this->tournamentHasFinished($tournament)) {
+        // Verificar si el torneo se está marcando como completado
+        $isBeingCompleted = ($payload['status'] ?? null) === 'completed' 
+            || (($tournament->status ?? 'in_progress') !== 'completed' && $this->tournamentHasFinished($tournament));
+        
+        if ($isBeingCompleted) {
             $tournament->update([
                 'status' => 'completed',
                 'completed_at' => Carbon::now(),
             ]);
             $tournament->refresh();
+            
+            // Calcular puntos adicionales por favorita ganadora
+            // Esto se ejecuta cuando el torneo se completa
+            $this->calcularPuntosFavoritaGanadora($tournament);
             
             // Finalizar todas las quinielas del torneo
             $this->finalizeAllTournamentQuinielas($tournament);
@@ -865,6 +884,121 @@ class TorneoController extends Controller
 
         foreach ($quinielas as $quiniela) {
             $quiniela->finalizar();
+        }
+    }
+
+    /**
+     * Calcular puntos adicionales (10 puntos) para usuarios cuya selección favorita ganó el torneo
+     * Método estático para poder llamarlo desde otros controladores
+     */
+    public static function calcularPuntosFavoritaGanadoraStatic(WorldCupTournament $tournament)
+    {
+        $instance = new static();
+        return $instance->calcularPuntosFavoritaGanadora($tournament);
+    }
+
+    /**
+     * Calcular puntos adicionales (10 puntos) para usuarios cuya selección favorita ganó el torneo
+     */
+    protected function calcularPuntosFavoritaGanadora(WorldCupTournament $tournament)
+    {
+        if (!Schema::hasTable('user_tournament_favorites')) {
+            \Log::info('Tabla user_tournament_favorites no existe');
+            return;
+        }
+
+        // Refrescar el torneo para obtener los datos más recientes
+        $tournament->refresh();
+        
+        // Obtener el ganador del torneo desde results
+        $results = $tournament->results ?? [];
+        $champion = $results['rewards']['champion'] ?? $results['champion'] ?? null;
+        
+        if (!$champion) {
+            \Log::warning('No se encontró el campeón del torneo', [
+                'tournament_id' => $tournament->id,
+                'results' => $results,
+                'results_keys' => is_array($results) ? array_keys($results) : 'not_array',
+            ]);
+            return;
+        }
+
+        // El champion puede venir como objeto o array
+        $championCode = null;
+        if (is_array($champion)) {
+            $championCode = $champion['code'] ?? null;
+        } elseif (is_object($champion)) {
+            $championCode = $champion->code ?? null;
+        }
+        
+        if (!$championCode) {
+            \Log::warning('No se pudo obtener el código del campeón', [
+                'tournament_id' => $tournament->id,
+                'champion' => $champion,
+                'champion_type' => gettype($champion),
+            ]);
+            return;
+        }
+
+        // Obtener todos los usuarios que seleccionaron esta favorita
+        $favorites = UserTournamentFavorite::where('tournament_id', $tournament->id)
+            ->where('favorite_team_code', $championCode)
+            ->get();
+
+        \Log::info('Calculando puntos adicionales por favorita ganadora', [
+            'tournament_id' => $tournament->id,
+            'champion_code' => $championCode,
+            'users_count' => $favorites->count(),
+        ]);
+
+        foreach ($favorites as $favorite) {
+            $usuarioId = $favorite->registro_id;
+            
+            // Validar que el usuario existe
+            if (!Schema::hasTable('registros') || !\App\Models\Registro::find($usuarioId)) {
+                continue;
+            }
+
+            // Verificar si ya se otorgaron los puntos adicionales (evitar duplicados)
+            // Usamos 999 como identificador especial para puntos de favorita ganadora (no podemos usar -1 porque round_index es UNSIGNED)
+            $existingBonus = WorldCupUserPoint::where('registro_id', $usuarioId)
+                ->where('tournament_id', $tournament->id)
+                ->where('round_index', 999) // Usamos 999 para identificar puntos de favorita ganadora
+                ->first();
+
+            if ($existingBonus) {
+                continue; // Ya se otorgaron los puntos
+            }
+
+            // Guardar los 10 puntos adicionales en world_cup_user_points
+            if (Schema::hasTable('world_cup_user_points')) {
+                WorldCupUserPoint::create([
+                    'registro_id' => $usuarioId,
+                    'tournament_id' => $tournament->id,
+                    'round_index' => 999, // Identificador especial para puntos de favorita ganadora (999 porque round_index es UNSIGNED)
+                    'round_name' => 'Bonus: Favorita Ganadora',
+                    'puntos_totales' => 10,
+                    'apuestas_totales' => 0,
+                    'apuestas_acertadas' => 0,
+                    'fecha_calculo' => Carbon::now(),
+                ]);
+            }
+
+            // Actualizar puntos acumulados globales
+            if (Schema::hasTable('user_total_points')) {
+                UserTotalPoint::actualizarPuntosAcumulados(
+                    $usuarioId,
+                    10, // 10 puntos adicionales
+                    0   // No cuenta como partido acertado
+                );
+            }
+
+            \Log::info('Puntos adicionales otorgados por favorita ganadora', [
+                'usuario_id' => $usuarioId,
+                'tournament_id' => $tournament->id,
+                'favorite_team_code' => $championCode,
+                'puntos' => 10,
+            ]);
         }
     }
 }

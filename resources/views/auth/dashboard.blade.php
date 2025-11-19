@@ -90,10 +90,31 @@
                     @endif
                 </div>
             </div>
+            
+            <!-- Acciones Rápidas -->
+            <div class="card mundial-card mt-3" style="max-width: 900px;">
+                <div class="card-header bg-info">
+                    <span class="text-white">
+                        <i class="fas fa-bolt me-2"></i>
+                        Acciones Rápidas
+                    </span>
+                </div>
+                <div class="card-body">
+                    <a href="{{ route('quinielas.index') }}" class="btn btn-primary">
+                        <i class="fa fa-trophy"></i> {{ __('Ver Quinielas') }}
+                    </a>
+                    <a href="{{ route('torneo.index') }}" class="btn btn-success">
+                        <i class="fa fa-globe"></i> {{ __('Ver Torneo') }}
+                    </a>
+                    <a href="{{ route('chat.buscar') }}" class="btn btn-info">
+                        <i class="fa fa-user-plus"></i> {{ __('Buscar Usuarios') }}
+                    </a>
+                </div>
+            </div>
         </div>
 
         <!-- Información del Usuario -->
-        <div class="col-md-4">
+        <div class="col-md-4 mb-4">
             <div class="card mundial-card">
                 <div class="card-header bg-primary">
                     <span class="text-white">
@@ -108,6 +129,32 @@
                     <h5 class="text-center">{{ $usuario->nombre }}</h5>
                     <p class="text-center text-muted">{{ $usuario->correo }}</p>
                     <p class="text-center"><small class="text-muted">Edad: {{ $usuario->edad }} años</small></p>
+                    
+                    <!-- Rango/Medalla del Usuario -->
+                    <div class="mb-3 p-3 rounded border text-center" style="background: linear-gradient(135deg, {{ $rango['color'] }}15 0%, {{ $rango['color'] }}05 100%); border-color: {{ $rango['color'] }} !important;">
+                        <div class="mb-2">
+                            <i class="fas {{ $rango['icono'] }} fa-3x" style="color: {{ $rango['color'] }};"></i>
+                        </div>
+                        <h4 class="mb-1 fw-bold" style="color: {{ $rango['color'] }};">
+                            {{ $rango['nombre'] }}
+                        </h4>
+                        <small class="text-muted d-block">{{ $rango['descripcion'] }}</small>
+                        @if($rango['puntos_siguiente'])
+                            @php
+                                $puntosParaSiguiente = $rango['puntos_siguiente'] - $puntosAcumulados;
+                                $siguienteRango = \App\Models\UserTotalPoint::calcularRango($rango['puntos_siguiente']);
+                            @endphp
+                            <small class="text-muted d-block mt-2">
+                                <i class="fas fa-arrow-up me-1"></i>
+                                {{ $puntosParaSiguiente }} puntos para {{ $siguienteRango['nombre'] }}
+                            </small>
+                        @else
+                            <small class="text-muted d-block mt-2">
+                                <i class="fas fa-star me-1"></i>
+                                Rango máximo alcanzado
+                            </small>
+                        @endif
+                    </div>
                     
                     <hr>
                     
@@ -141,30 +188,6 @@
                             <small class="text-muted">({{ $partidosAcertados ?? 0 }} partidos acertados en total)</small>
                         </div>
                     </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="row mt-3">
-        <div class="col-12">
-            <div class="card mundial-card">
-                <div class="card-header bg-info">
-                    <span class="text-white">
-                        <i class="fas fa-bolt me-2"></i>
-                        Acciones Rápidas
-                    </span>
-                </div>
-                <div class="card-body">
-                    <a href="{{ route('quinielas.index') }}" class="btn btn-primary">
-                        <i class="fa fa-trophy"></i> {{ __('Ver Quinielas') }}
-                    </a>
-                    <a href="{{ route('torneo.index') }}" class="btn btn-success">
-                        <i class="fa fa-globe"></i> {{ __('Ver Torneo') }}
-                    </a>
-                    <a href="{{ route('chat.buscar') }}" class="btn btn-info">
-                        <i class="fa fa-user-plus"></i> {{ __('Buscar Usuarios') }}
-                    </a>
                 </div>
             </div>
         </div>

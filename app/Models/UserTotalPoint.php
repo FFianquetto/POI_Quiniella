@@ -97,4 +97,75 @@ class UserTotalPoint extends Model
             ->limit($limit)
             ->get();
     }
+
+    /**
+     * Calcular el rango/medalla del usuario basado en sus puntos totales
+     * Rangos: Bronce (0), Plata (20), Oro (40), Platino (60), Diamante (80), Leyenda (100+)
+     */
+    public static function calcularRango($puntosTotales)
+    {
+        $puntos = (int) $puntosTotales;
+        
+        if ($puntos >= 100) {
+            return [
+                'nombre' => 'Leyenda',
+                'nivel' => 6,
+                'puntos_requeridos' => 100,
+                'puntos_siguiente' => null,
+                'color' => '#9b59b6',
+                'icono' => 'fa-crown',
+                'descripcion' => 'El máximo nivel de conocimiento futbolístico'
+            ];
+        } elseif ($puntos >= 80) {
+            return [
+                'nombre' => 'Diamante',
+                'nivel' => 5,
+                'puntos_requeridos' => 80,
+                'puntos_siguiente' => 100,
+                'color' => '#3498db',
+                'icono' => 'fa-gem',
+                'descripcion' => 'Experto en predicciones futbolísticas'
+            ];
+        } elseif ($puntos >= 60) {
+            return [
+                'nombre' => 'Platino',
+                'nivel' => 4,
+                'puntos_requeridos' => 60,
+                'puntos_siguiente' => 80,
+                'color' => '#95a5a6',
+                'icono' => 'fa-medal',
+                'descripcion' => 'Gran conocedor del fútbol'
+            ];
+        } elseif ($puntos >= 40) {
+            return [
+                'nombre' => 'Oro',
+                'nivel' => 3,
+                'puntos_requeridos' => 40,
+                'puntos_siguiente' => 60,
+                'color' => '#f39c12',
+                'icono' => 'fa-medal',
+                'descripcion' => 'Buen nivel de conocimiento'
+            ];
+        } elseif ($puntos >= 20) {
+            return [
+                'nombre' => 'Plata',
+                'nivel' => 2,
+                'puntos_requeridos' => 20,
+                'puntos_siguiente' => 40,
+                'color' => '#95a5a6',
+                'icono' => 'fa-medal',
+                'descripcion' => 'Conocimiento básico del fútbol'
+            ];
+        } else {
+            return [
+                'nombre' => 'Bronce',
+                'nivel' => 1,
+                'puntos_requeridos' => 0,
+                'puntos_siguiente' => 20,
+                'color' => '#cd7f32',
+                'icono' => 'fa-medal',
+                'descripcion' => 'Iniciando en las quinielas'
+            ];
+        }
+    }
 }

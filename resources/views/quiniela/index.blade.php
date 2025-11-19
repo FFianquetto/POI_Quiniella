@@ -70,19 +70,115 @@
     @endif
 
     @if($isTournamentClosed)
-    <div class="row mt-4">
+    <div class="row mt-4" id="tournamentResultsCard">
         <div class="col-sm-12">
             <div class="card mundial-card">
-                <div class="card-header bg-danger">
+                <div class="card-header bg-success">
                     <div class="d-flex justify-content-between align-items-center">
                         <span id="worldCupCardTitle" class="text-white">
-                            <i class="fas fa-lock me-2"></i>
-                            Quinielas del Mundial 2026 - CERRADA
+                            <i class="fas fa-trophy me-2"></i>
+                            Resultados del Torneo - Mundial Finalizado
                         </span>
                         <span class="badge bg-light text-dark">
-                            <i class="fas fa-ban me-1"></i>
-                            Torneo Finalizado
+                            <i class="fas fa-check-circle me-1"></i>
+                            Torneo Completado
                         </span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="text-center mb-4">
+                        <h3 class="text-success mb-3">
+                            <i class="fas fa-star me-2"></i>
+                            ¡Tus Resultados!
+                        </h3>
+                        
+                        @if(isset($puntosTotales) && $puntosTotales > 0)
+                        <div class="row justify-content-center mb-4">
+                            <div class="col-md-8">
+                                <div class="p-4 bg-light rounded border">
+                                    <h5 class="text-muted mb-3">Puntos Totales Obtenidos</h5>
+                                    <div class="display-3 fw-bold text-success mb-2">
+                                        {{ $puntosTotales }}
+                                    </div>
+                                    <p class="text-muted mb-0">puntos en este torneo</p>
+                                    
+                                    @if(isset($favoritaGano) && $favoritaGano && isset($puntosBonusFavorita) && $puntosBonusFavorita > 0)
+                                    <div class="mt-3 p-3 bg-warning rounded">
+                                        <p class="mb-1 fw-bold text-dark">
+                                            <i class="fas fa-gift me-2"></i>
+                                            ¡Bono por Selección Favorita Ganadora!
+                                        </p>
+                                        <p class="mb-0 text-dark">
+                                            Tu selección favorita ganó el torneo. 
+                                            <strong>+{{ $puntosBonusFavorita }} puntos adicionales</strong>
+                                        </p>
+                                    </div>
+                                    @endif
+                                </div>
+                            </div>
+                        </div>
+                        
+                        @if(isset($puntosPorFase) && count($puntosPorFase) > 0)
+                        <div class="row mb-4">
+                            <div class="col-12">
+                                <h5 class="text-muted mb-3">Desglose por Fase</h5>
+                                <div class="row g-3">
+                                    @foreach($puntosPorFase as $fase)
+                                    <div class="col-md-6 col-lg-4">
+                                        <div class="card h-100 border-0 shadow-sm">
+                                            <div class="card-body text-center">
+                                                <h6 class="card-title text-muted mb-2">
+                                                    <i class="fas fa-flag me-2"></i>
+                                                    Fase {{ $fase['fase'] }}
+                                                </h6>
+                                                <h5 class="card-subtitle mb-2 text-primary">
+                                                    {{ $fase['nombre'] }}
+                                                </h5>
+                                                <div class="display-5 fw-bold text-success mb-0">
+                                                    {{ $fase['puntos'] }}
+                                                </div>
+                                                <small class="text-muted">puntos</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    @endforeach
+                                    
+                                    @if(isset($puntosBonusFavorita) && $puntosBonusFavorita > 0)
+                                    <div class="col-md-6 col-lg-4">
+                                        <div class="card h-100 border-0 shadow-sm" style="border: 2px solid #ffc107 !important;">
+                                            <div class="card-body text-center">
+                                                <h6 class="card-title text-muted mb-2">
+                                                    <i class="fas fa-gift me-2"></i>
+                                                    Bonus
+                                                </h6>
+                                                <h5 class="card-subtitle mb-2 text-warning">
+                                                    Favorita Ganadora
+                                                </h5>
+                                                <div class="display-5 fw-bold text-warning mb-0">
+                                                    +{{ $puntosBonusFavorita }}
+                                                </div>
+                                                <small class="text-muted">puntos</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    @endif
+                                </div>
+                            </div>
+                        </div>
+                        @endif
+                        @else
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            No participaste en este torneo o no obtuviste puntos.
+                        </div>
+                        @endif
+                        
+                        <div class="mt-4">
+                            <button type="button" class="btn btn-success btn-lg" id="acceptTournamentResults">
+                                <i class="fas fa-check me-2"></i>
+                                Aceptar
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -131,19 +227,47 @@
                     </div>
                 </div>
                 <div class="card-body">
-                    @if(!((isset($hasAllBetsForActiveRound) && $hasAllBetsForActiveRound) || (isset($isTournamentClosed) && $isTournamentClosed)))
-                        <div class="mb-3 text-end">
-                            <button type="button" class="btn btn-outline-primary btn-sm" id="randomFillButton">
-                                <i class="fas fa-dice me-2"></i>
-                                Autocompletar aleatorio
-                            </button>
-                        </div>
-                    @endif
                     <form action="{{ route('quinielas.mundial.apostar') }}"
                           method="POST"
                           id="worldCupBetsForm"
                           data-matches="{{ $worldCupMatches->count() }}">
                         @csrf
+                        
+                        @if(!((isset($hasAllBetsForActiveRound) && $hasAllBetsForActiveRound) || (isset($isTournamentClosed) && $isTournamentClosed)) || (isset($isFirstPhase) && $isFirstPhase && isset($tournamentTeams) && $tournamentTeams->isNotEmpty()))
+                        <div class="mb-3 d-flex justify-content-between align-items-end gap-3 flex-wrap">
+                            @if(isset($isFirstPhase) && $isFirstPhase && isset($tournamentTeams) && $tournamentTeams->isNotEmpty())
+                            <div class="p-3 bg-light rounded border" style="max-width: 500px; flex: 1; min-width: 300px;">
+                                <label for="favorite_team_code" class="form-label fw-bold mb-2">
+                                    <i class="fas fa-star text-warning me-2"></i>
+                                    Escoge tu selección favorita para ganar el torneo
+                                </label>
+                                <select name="favorite_team_code" 
+                                        id="favorite_team_code" 
+                                        class="form-select"
+                                        @if((isset($hasAllBetsForActiveRound) && $hasAllBetsForActiveRound) || (isset($isTournamentClosed) && $isTournamentClosed))
+                                            disabled
+                                        @endif>
+                                    <option value="">-- Selecciona tu favorita --</option>
+                                    @foreach($tournamentTeams as $team)
+                                        <option value="{{ $team['code'] }}" 
+                                                {{ (isset($userFavoriteTeam) && $userFavoriteTeam === $team['code']) ? 'selected' : '' }}>
+                                            {{ $team['name'] }} ({{ $team['code'] }})
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            @endif
+                            
+                            @if(!((isset($hasAllBetsForActiveRound) && $hasAllBetsForActiveRound) || (isset($isTournamentClosed) && $isTournamentClosed)))
+                            <div class="text-end">
+                                <button type="button" class="btn btn-outline-primary btn-sm" id="randomFillButton">
+                                    <i class="fas fa-dice me-2"></i>
+                                    Autocompletar aleatorio
+                                </button>
+                            </div>
+                            @endif
+                        </div>
+                        @endif
                         <div class="table-responsive">
                             <table class="table align-middle mundial-table">
                                 <thead>
@@ -627,6 +751,37 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Hacer la función evaluateSelections disponible globalmente para el script de autocompletar
     window.evaluateSelections = evaluateSelections;
+
+    // Botón para aceptar y ocultar los resultados del torneo finalizado
+    const acceptResultsBtn = document.getElementById('acceptTournamentResults');
+    if (acceptResultsBtn) {
+        acceptResultsBtn.addEventListener('click', function() {
+            const resultsCard = document.getElementById('tournamentResultsCard');
+            if (resultsCard) {
+                resultsCard.style.display = 'none';
+                // Guardar en sessionStorage que el usuario ya vio los resultados
+                sessionStorage.setItem('tournamentResultsAccepted', 'true');
+            }
+        });
+    }
+    
+    // Si el usuario ya aceptó los resultados anteriormente, ocultar la tarjeta
+    // Pero solo si el torneo sigue cerrado (si hay un nuevo torneo, mostrar los resultados de nuevo)
+    const tournamentResultsCard = document.getElementById('tournamentResultsCard');
+    if (tournamentResultsCard) {
+        // Verificar si hay un torneo cerrado actualmente
+        const isTournamentClosed = tournamentResultsCard.style.display !== 'none';
+        if (sessionStorage.getItem('tournamentResultsAccepted') === 'true' && isTournamentClosed) {
+            // Solo ocultar si el usuario ya aceptó Y el torneo sigue cerrado
+            // Si se genera un nuevo torneo, el sessionStorage se limpiará al recargar
+            tournamentResultsCard.style.display = 'none';
+        }
+    }
+    
+    // Limpiar el sessionStorage cuando se detecta que hay un nuevo torneo activo
+    @if(!$isTournamentClosed)
+    sessionStorage.removeItem('tournamentResultsAccepted');
+    @endif
 
     // Código del formulario (solo si existe)
     if (!form) {

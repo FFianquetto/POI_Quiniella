@@ -9,6 +9,7 @@ use App\Models\WorldCupBet;
 use App\Models\WorldCupTournament;
 use App\Models\WorldCupMatchResult;
 use App\Models\WorldCupTeam;
+use App\Models\UserTournamentFavorite;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -77,8 +78,11 @@ class QuinielaController extends Controller
         
         if ($latestTournament && !$isTournamentClosed) {
             $worldCupMatches = $this->extractMatchesFromTournament($latestTournament, $activeRoundIndex);
+            // Obtener equipos del torneo para el selector de favorita
+            $tournamentTeams = collect($latestTournament->teams ?? [])->sortBy('name');
         } else {
             $worldCupMatches = collect();
+            $tournamentTeams = collect();
         }
         
         // Si el torneo está en progreso pero no tiene partidos aún, mostrar mensaje
@@ -111,9 +115,25 @@ class QuinielaController extends Controller
             ->orderBy('fecha_limite')
             ->paginate(10);
         
+        // Obtener selección favorita del usuario para este torneo (solo si es la primera fase)
+        $userFavoriteTeam = null;
+        $isFirstPhase = ($activeRoundIndex === 0);
+        if ($latestTournament && $usuarioId && $isFirstPhase && Schema::hasTable('user_tournament_favorites')) {
+            $favorite = \App\Models\UserTournamentFavorite::where('registro_id', $usuarioId)
+                ->where('tournament_id', $latestTournament->id)
+                ->first();
+            if ($favorite) {
+                $userFavoriteTeam = $favorite->favorite_team_code;
+            }
+        }
+
         // Obtener puntos por fase si hay un torneo activo
         $puntosPorFase = [];
         $puntosTotales = 0;
+        $puntosBonusFavorita = 0;
+        $favoritaGano = false;
+        $championCode = null;
+        
         if ($latestTournament && $usuarioId && Schema::hasTable('world_cup_bets')) {
             // Obtener todas las rondas del torneo
             $rounds = $latestTournament->rounds ?? [];
@@ -143,6 +163,69 @@ class QuinielaController extends Controller
                     $puntosTotales += $puntosRonda;
                 }
             }
+            
+            // Verificar si hay puntos bonus por favorita ganadora (round_index = 999)
+            // Usamos 999 como identificador especial porque round_index es UNSIGNED y no permite valores negativos
+            if (Schema::hasTable('world_cup_user_points')) {
+                $bonusPoint = \App\Models\WorldCupUserPoint::where('registro_id', $usuarioId)
+                    ->where('tournament_id', $latestTournament->id)
+                    ->where('round_index', 999)
+                    ->first();
+                
+                if ($bonusPoint) {
+                    $puntosBonusFavorita = $bonusPoint->puntos_totales ?? 10; // Por defecto 10 si no está definido
+                    $puntosTotales += $puntosBonusFavorita;
+                    $favoritaGano = true;
+                } else {
+                    // Si no hay registro de bono pero el torneo está cerrado, verificar si debería haberlo
+                    // Esto puede pasar si el método calcularPuntosFavoritaGanadora no se ejecutó correctamente
+                    if ($isTournamentClosed && $latestTournament->results) {
+                        $results = $latestTournament->results;
+                        $champion = $results['rewards']['champion'] ?? $results['champion'] ?? null;
+                        $championCode = null;
+                        if (is_array($champion)) {
+                            $championCode = $champion['code'] ?? null;
+                        } elseif (is_object($champion)) {
+                            $championCode = $champion->code ?? null;
+                        }
+                        
+                        // Verificar si el usuario tenía esta favorita
+                        if ($championCode && Schema::hasTable('user_tournament_favorites')) {
+                            $favorite = \App\Models\UserTournamentFavorite::where('registro_id', $usuarioId)
+                                ->where('tournament_id', $latestTournament->id)
+                                ->where('favorite_team_code', $championCode)
+                                ->first();
+                            
+                            if ($favorite) {
+                                // El usuario debería tener el bono pero no está registrado
+                                // Intentar calcularlo ahora
+                                \App\Http\Controllers\TorneoController::calcularPuntosFavoritaGanadoraStatic($latestTournament);
+                                
+                                // Volver a buscar el bono
+                                $bonusPoint = \App\Models\WorldCupUserPoint::where('registro_id', $usuarioId)
+                                    ->where('tournament_id', $latestTournament->id)
+                                    ->where('round_index', 999)
+                                    ->first();
+                                
+                                if ($bonusPoint) {
+                                    $puntosBonusFavorita = $bonusPoint->puntos_totales ?? 10;
+                                    $puntosTotales += $puntosBonusFavorita;
+                                    $favoritaGano = true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Obtener el código del campeón del torneo
+            if ($isTournamentClosed && $latestTournament->results) {
+                $results = $latestTournament->results;
+                $champion = $results['rewards']['champion'] ?? $results['champion'] ?? null;
+                if ($champion && is_array($champion)) {
+                    $championCode = $champion['code'] ?? null;
+                }
+            }
         }
         
         return view('quiniela.index', compact(
@@ -158,7 +241,14 @@ class QuinielaController extends Controller
             'puntosPorFase',
             'puntosTotales',
             'latestTournament',
-            'hasAllBetsForActiveRound'
+            'hasAllBetsForActiveRound',
+            'userFavoriteTeam',
+            'isFirstPhase',
+            'activeRoundIndex',
+            'tournamentTeams',
+            'puntosBonusFavorita',
+            'favoritaGano',
+            'championCode'
         ));
     }
 
@@ -445,6 +535,29 @@ class QuinielaController extends Controller
                     'score_a' => $data['score_a'],
                     'score_b' => $data['score_b'],
                 ]);
+            }
+        }
+
+        // Guardar o actualizar la selección favorita del usuario (solo en la primera fase)
+        if ($activeRoundIndex === 0 && $request->has('favorite_team_code') && !empty($request->input('favorite_team_code'))) {
+            $favoriteTeamCode = $request->input('favorite_team_code');
+            
+            // Validar que el código del equipo sea válido (debe estar en los equipos del torneo)
+            $tournamentTeams = collect($activeTournament->teams ?? []);
+            $isValidTeam = $tournamentTeams->contains(function($team) use ($favoriteTeamCode) {
+                return isset($team['code']) && $team['code'] === $favoriteTeamCode;
+            });
+            
+            if ($isValidTeam && Schema::hasTable('user_tournament_favorites')) {
+                UserTournamentFavorite::updateOrCreate(
+                    [
+                        'registro_id' => $usuarioId,
+                        'tournament_id' => $activeTournament->id,
+                    ],
+                    [
+                        'favorite_team_code' => $favoriteTeamCode,
+                    ]
+                );
             }
         }
 

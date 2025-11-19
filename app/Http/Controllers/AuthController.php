@@ -152,6 +152,9 @@ class AuthController extends Controller
                 );
         }
 
+        // 5. Calcular el rango/medalla del usuario basado en sus puntos totales
+        $rango = \App\Models\UserTotalPoint::calcularRango($puntosAcumulados);
+
         // Obtener puntos de la última quiniela jugada mediante consulta MySQL directa
         $puntosUltimaQuiniela = 0;
         $nombreUltimaQuiniela = null;
@@ -201,7 +204,8 @@ class AuthController extends Controller
             'partidosAcertados',
             'puntosUltimaQuiniela',
             'nombreUltimaQuiniela',
-            'fechaUltimaQuiniela'
+            'fechaUltimaQuiniela',
+            'rango'
         ));
     }
 }
