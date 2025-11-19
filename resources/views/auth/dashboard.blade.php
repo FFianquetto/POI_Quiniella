@@ -111,14 +111,34 @@
                     
                     <hr>
                     
-                    <div class="row text-center">
-                        <div class="col-6">
-                            <h6>{{ $chats->count() }}</h6>
-                            <small class="text-muted">Chats</small>
+                    <!-- Puntos de la Última Quiniela -->
+                    @if($puntosUltimaQuiniela > 0)
+                    <div class="mb-3 p-3 rounded border" style="background-color: #fff3e0; border-color: #ff9800 !important;">
+                        <div class="text-center">
+                            <h4 class="mb-1" style="color: #ff9800;">
+                                <i class="fas fa-trophy me-2" style="color: #ff9800;"></i>
+                                {{ $puntosUltimaQuiniela }}
+                            </h4>
+                            <small class="text-muted d-block fw-semibold">Última Quiniela</small>
+                            @if($nombreUltimaQuiniela)
+                                <small class="text-muted d-block">{{ $nombreUltimaQuiniela }}</small>
+                            @endif
+                            @if($fechaUltimaQuiniela)
+                                <small class="text-muted">{{ \Carbon\Carbon::parse($fechaUltimaQuiniela)->format('d/m/Y') }}</small>
+                            @endif
                         </div>
-                        <div class="col-6">
-                            <h6>{{ $usuario->participaciones->count() }}</h6>
-                            <small class="text-muted">Quinielas</small>
+                    </div>
+                    @endif
+                    
+                    <!-- Puntos Acumulados Globales -->
+                    <div class="mb-3 p-3 bg-light rounded">
+                        <div class="text-center">
+                            <h3 class="text-success mb-1">
+                                <i class="fas fa-trophy me-2"></i>
+                                {{ $puntosAcumulados ?? 0 }}
+                            </h3>
+                            <small class="text-muted d-block fw-semibold">Puntos Acumulados Globales</small>
+                            <small class="text-muted">({{ $partidosAcertados ?? 0 }} partidos acertados en total)</small>
                         </div>
                     </div>
                 </div>

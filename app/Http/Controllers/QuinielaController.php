@@ -240,6 +240,12 @@ class QuinielaController extends Controller
         return back()->with('success', $mensaje);
     }
 
+    /**
+     * Registrar apuestas del Mundial para la ronda activa
+     * IMPORTANTE: Los usuarios pueden participar en cualquier fase activa, 
+     * independientemente de si participaron o no en fases anteriores.
+     * No hay restricciones que impidan participar en fases posteriores.
+     */
     public function apostarMundial(Request $request): RedirectResponse
     {
         if (!Schema::hasTable('world_cup_bets')) {

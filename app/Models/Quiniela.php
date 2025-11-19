@@ -105,6 +105,7 @@ class Quiniela extends Model
 
         // Asignar puntos a los ganadores
         foreach ($ganadores as $prediccion) {
+            $puntosAnteriores = $prediccion->puntos_obtenidos ?? 0;
             $prediccion->puntos_obtenidos = $this->puntos_ganador;
             $prediccion->acierto = true;
             $prediccion->save();
@@ -114,6 +115,18 @@ class Quiniela extends Model
             if ($participante) {
                 $participante->calcularPuntosTotales();
                 $participante->actualizarPosicion();
+            }
+            
+            // Actualizar puntos acumulados globales en user_total_points
+            // Solo sumar la diferencia si es la primera vez que se asignan puntos
+            if ($puntosAnteriores == 0 && $this->puntos_ganador > 0) {
+                if (\Illuminate\Support\Facades\Schema::hasTable('user_total_points')) {
+                    \App\Models\UserTotalPoint::actualizarPuntosAcumulados(
+                        $prediccion->registro_id,
+                        $this->puntos_ganador,
+                        1 // 1 partido acertado
+                    );
+                }
             }
         }
 

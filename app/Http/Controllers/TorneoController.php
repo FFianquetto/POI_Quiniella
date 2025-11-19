@@ -716,7 +716,11 @@ class TorneoController extends Controller
         }
 
         // Obtener todas las apuestas de esta ronda agrupadas por usuario
-        // IMPORTANTE: Filtrar solo apuestas con registro_id válido para asegurar que solo se calculen puntos a usuarios registrados
+        // IMPORTANTE: 
+        // - Solo se procesan usuarios que REALMENTE tienen apuestas en esta ronda
+        // - Si un usuario no participó en esta fase, NO se le sumarán puntos (no aparecerá en $bets)
+        // - Los usuarios pueden participar en fases posteriores aunque no hayan participado en anteriores
+        // - Cada usuario solo suma puntos de las fases en las que realmente participó
         $bets = \App\Models\WorldCupBet::where('tournament_id', $tournamentId)
             ->where('round_index', $roundIndex)
             ->whereNotNull('registro_id') // Asegurar que solo se procesen apuestas con usuario
@@ -730,12 +734,15 @@ class TorneoController extends Controller
         $totalCalculated = 0;
         $usersProcessed = 0;
 
+        // Procesar solo usuarios que tienen apuestas en esta ronda
+        // Si un usuario no participó en esta fase, no estará en este loop y no se le sumarán puntos
         foreach ($bets as $usuarioId => $usuarioBets) {
             $puntosTotales = 0;
             $apuestasTotales = $usuarioBets->count();
             $apuestasAcertadas = 0;
 
             // Calcular puntos para cada apuesta del usuario
+            // Solo se calculan puntos si el usuario REALMENTE hizo apuestas en esta ronda
             foreach ($usuarioBets as $bet) {
                 $puntos = $bet->calcularPuntos();
                 $puntosTotales += $puntos;
@@ -750,6 +757,17 @@ class TorneoController extends Controller
             if ($usuarioId && Schema::hasTable('world_cup_user_points')) {
                 // Validar nuevamente que el usuario existe antes de guardar sus puntos
                 if (Schema::hasTable('registros') && \App\Models\Registro::find($usuarioId)) {
+                    // IMPORTANTE: Verificar ANTES de guardar si los puntos de esta ronda ya se calcularon
+                    // para evitar sumar puntos duplicados en la tabla de puntos acumulados
+                    $existingPoint = \App\Models\WorldCupUserPoint::where('registro_id', $usuarioId)
+                        ->where('tournament_id', $tournamentId)
+                        ->where('round_index', $roundIndex)
+                        ->whereNotNull('fecha_calculo')
+                        ->first();
+                    
+                    $esPrimeraVez = !$existingPoint;
+                    
+                    // Guardar o actualizar los puntos de la ronda
                     \App\Models\WorldCupUserPoint::updateOrCreate(
                         [
                             'registro_id' => $usuarioId,
@@ -764,6 +782,19 @@ class TorneoController extends Controller
                             'fecha_calculo' => \Carbon\Carbon::now(),
                         ]
                     );
+                    
+                    // Actualizar puntos acumulados globales del usuario
+                    // SOLO si es la primera vez que se calculan los puntos para esta ronda
+                    // IMPORTANTE: Solo se suman puntos si el usuario REALMENTE participó en esta fase
+                    // Si un usuario no hizo apuestas en esta fase, no estará en este loop y no se le sumarán puntos
+                    // Los usuarios pueden participar en fases posteriores aunque no hayan participado en anteriores
+                    if ($esPrimeraVez && Schema::hasTable('user_total_points') && $puntosTotales > 0) {
+                        \App\Models\UserTotalPoint::actualizarPuntosAcumulados(
+                            $usuarioId,
+                            $puntosTotales,
+                            $apuestasAcertadas
+                        );
+                    }
                     
                     $usersProcessed++;
                 }

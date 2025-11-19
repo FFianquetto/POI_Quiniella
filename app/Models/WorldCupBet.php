@@ -55,7 +55,7 @@ class WorldCupBet extends Model
 
     /**
      * Calcular puntos basado en el resultado real del partido
-     * Solo se otorgan puntos por acertar el ganador (3 puntos)
+     * Solo se otorgan puntos por acertar el ganador (1 punto por partido acertado)
      * El marcador es indiferente
      */
     public function calcularPuntos()
@@ -73,9 +73,9 @@ class WorldCupBet extends Model
         $puntos = 0;
         $aciertoGanador = false;
 
-        // Verificar acierto de ganador (3 puntos) - el marcador es indiferente
+        // Verificar acierto de ganador (1 punto por partido acertado) - el marcador es indiferente
         if ($matchResult->winner_code === $this->selected_code) {
-            $puntos = 3;
+            $puntos = 1;
             $aciertoGanador = true;
         }
 

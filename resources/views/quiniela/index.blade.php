@@ -25,7 +25,7 @@
         </div>
     </div>
 
-    @if(!empty($puntosPorFase) && count($puntosPorFase) > 0)
+    @if(!empty($puntosPorFase) && count($puntosPorFase) > 0 && !$isTournamentClosed)
     <div class="row mt-4">
         <div class="col-sm-12">
             <div class="card mundial-card">
@@ -487,6 +487,23 @@
 @push('scripts')
 <script src="{{ asset('js/quiniela-autocomplete.js') }}"></script>
 <script>
+// Recargar la página automáticamente 1 vez al cargar para asegurar que todas las variables estén disponibles
+(function() {
+    var hasReloaded = sessionStorage.getItem('quinielaHasReloaded');
+    
+    if (!hasReloaded) {
+        sessionStorage.setItem('quinielaHasReloaded', 'true');
+        // Recargar la página después de un breve delay
+        setTimeout(function() {
+            window.location.reload(true);
+        }, 100);
+        return; // Salir para evitar ejecutar el resto del código
+    } else {
+        // Limpiar la bandera después de la recarga
+        sessionStorage.removeItem('quinielaHasReloaded');
+    }
+})();
+
 document.addEventListener('DOMContentLoaded', () => {
     const form = document.getElementById('worldCupBetsForm');
     

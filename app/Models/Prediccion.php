@@ -56,6 +56,8 @@ class Prediccion extends Model
 
         $resultadoReal = $this->partido->resultado;
         
+        $puntosAnteriores = $this->puntos_obtenidos ?? 0;
+        
         if ($this->prediccion === $resultadoReal) {
             $this->acierto = true;
             $this->puntos_obtenidos = 3; // 3 puntos por acierto
@@ -65,6 +67,19 @@ class Prediccion extends Model
         }
 
         $this->save();
+        
+        // Actualizar puntos acumulados globales si ganó puntos
+        // Solo sumar la diferencia si es la primera vez que se asignan puntos
+        if ($puntosAnteriores == 0 && $this->puntos_obtenidos > 0) {
+            if (\Illuminate\Support\Facades\Schema::hasTable('user_total_points')) {
+                \App\Models\UserTotalPoint::actualizarPuntosAcumulados(
+                    $this->registro_id,
+                    $this->puntos_obtenidos,
+                    1 // 1 partido acertado
+                );
+            }
+        }
+        
         return $this->puntos_obtenidos;
     }
 }
