@@ -5,6 +5,20 @@
 @endsection
 
 @section('content')
+@if(session('success'))
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        {{ session('success') }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+@endif
+
+@if(session('error'))
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ session('error') }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+@endif
+
 <div class="container-fluid">
     <div class="row">
         <div class="col-sm-12">
@@ -572,6 +586,33 @@ document.addEventListener('DOMContentLoaded', function() {
     const progressGrabacion = document.getElementById('progress-grabacion');
     const chatForm = document.getElementById('chat-form');
     const mensajeTipo = document.getElementById('mensaje-tipo');
+    
+    // Asegurar que el formulario se envíe correctamente sin interceptar
+    chatForm.addEventListener('submit', function(e) {
+        // No interceptar el submit, dejar que el formulario se envíe normalmente
+        // Solo validar que haya contenido o archivo
+        const mensajeTexto = document.getElementById('mensaje-texto');
+        const archivoInput = document.getElementById('archivo-input');
+        
+        if (!mensajeTexto.value.trim() && (!archivoInput.files || archivoInput.files.length === 0)) {
+            e.preventDefault();
+            alert('Por favor, escribe un mensaje o adjunta un archivo.');
+            return false;
+        }
+        
+        // Si hay archivo, asegurar que el tipo esté correcto
+        if (archivoInput.files && archivoInput.files.length > 0) {
+            const file = archivoInput.files[0];
+            if (file.size > 50 * 1024 * 1024) {
+                e.preventDefault();
+                alert('El archivo es demasiado grande. Máximo 50MB.');
+                return false;
+            }
+        }
+        
+        // Permitir que el formulario se envíe normalmente
+        return true;
+    });
 
     btnAdjuntar.addEventListener('click', function() {
         archivoInput.click();
@@ -581,8 +622,8 @@ document.addEventListener('DOMContentLoaded', function() {
         if (this.files.length > 0) {
             const file = this.files[0];
             
-            if (file.size > 10 * 1024 * 1024) {
-                alert('El archivo es demasiado grande. Máximo 10MB.');
+            if (file.size > 50 * 1024 * 1024) {
+                alert('El archivo es demasiado grande. Máximo 50MB.');
                 this.value = '';
                 return;
             }

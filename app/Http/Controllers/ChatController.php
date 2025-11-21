@@ -104,6 +104,13 @@ class ChatController extends Controller
      */
     public function enviarMensaje(Request $request, Chat $chat): RedirectResponse
     {
+        \Log::info('Enviar mensaje recibido', [
+            'chat_id' => $chat->id,
+            'tiene_archivo' => $request->hasFile('archivo'),
+            'contenido' => $request->contenido,
+            'tipo' => $request->tipo
+        ]);
+        
         $request->validate([
             'contenido' => 'required_without:archivo|string|max:1000',
             'tipo' => 'in:texto,imagen,video,audio,archivo',
@@ -153,21 +160,38 @@ class ChatController extends Controller
             // Generar nombre único para el archivo
             $nombreArchivo = time() . '_' . uniqid() . '_' . $archivo->getClientOriginalName();
             
-            // Guardar archivo
-            $rutaCompleta = $archivo->storeAs('chat_archivos', $nombreArchivo, 'public');
+            // Guardar archivo en el disco 'public'
+            // storeAs devuelve la ruta relativa desde storage/app/public/
+            $rutaRelativa = $archivo->storeAs('chat_archivos', $nombreArchivo, 'public');
             
-            if (!$rutaCompleta) {
+            if (!$rutaRelativa) {
                 return back()->with('error', 'Error al guardar el archivo.');
             }
             
             // Generar URL pública para el archivo
-            $mensajeData['archivo_url'] = asset('storage/' . $rutaCompleta);
+            // La ruta relativa ya es 'chat_archivos/nombre_archivo'
+            // asset('storage/...') genera la URL correcta: /storage/chat_archivos/nombre_archivo
+            $mensajeData['archivo_url'] = asset('storage/' . $rutaRelativa);
             $mensajeData['archivo_nombre'] = $archivo->getClientOriginalName();
+            
+            \Log::info('Archivo guardado correctamente', [
+                'ruta_relativa' => $rutaRelativa,
+                'archivo_url' => $mensajeData['archivo_url'],
+                'archivo_nombre' => $mensajeData['archivo_nombre'],
+                'tipo' => $mensajeData['tipo'],
+                'ruta_fisica' => storage_path('app/public/' . $rutaRelativa)
+            ]);
         }
 
         $mensaje = $chat->mensajes()->create($mensajeData);
+        
+        \Log::info('Mensaje creado', [
+            'mensaje_id' => $mensaje->id,
+            'tipo' => $mensaje->tipo,
+            'tiene_archivo' => !empty($mensaje->archivo_url)
+        ]);
 
-        return back()->with('success', 'Mensaje enviado.');
+        return back()->with('success', 'Mensaje enviado correctamente.');
     }
 
     /**
