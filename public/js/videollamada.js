@@ -792,27 +792,11 @@ class VideoCall {
             // Validar formato de línea SDP
             // Las líneas SDP válidas empiezan con una letra seguida de '='
             if (line.match(/^[a-z]=/i)) {
-                // Limpiar líneas a=msid que pueden tener formato problemático
-                // Ejemplo problemático: a=msid:uuid1 uuid2 (dos UUIDs en la misma línea)
-                // WebRTC rechaza este formato, así que solo mantenemos el primer UUID
+                // ELIMINAR todas las líneas a=msid - son opcionales y causan problemas de compatibilidad
+                // Las líneas msid son solo para identificar streams/tracks pero no son necesarias para la conexión
                 if (line.startsWith('a=msid:')) {
-                    const msidMatch = line.match(/^a=msid:([^\s]+)(?:\s+(.+))?$/);
-                    if (msidMatch) {
-                        const firstUuid = msidMatch[1];
-                        const secondPart = msidMatch[2];
-                        
-                        // Si hay una segunda parte (segundo UUID), eliminarla
-                        // WebRTC solo acepta un UUID en la línea msid
-                        if (secondPart && secondPart.match(/^[0-9a-f-]{8,}$/i)) {
-                            // Solo mantener el primer UUID
-                            console.warn('Línea a=msid con dos UUIDs detectada, usando solo el primero:', line);
-                            cleanedLines.push(`a=msid:${firstUuid}`);
-                        } else {
-                            // Solo un UUID, agregarlo normalmente
-                            cleanedLines.push(line);
-                        }
-                        continue;
-                    }
+                    console.warn('Línea a=msid eliminada (opcional y problemática):', line);
+                    continue; // Saltar esta línea completamente
                 }
                 // Limpiar líneas a=ssrc que pueden tener formato incorrecto
                 // Ejemplo problemático: a=ssrc:1554986245 msid:xxx yyy
@@ -843,23 +827,25 @@ class VideoCall {
                                 const part = parts[i].trim();
                                 if (!part) continue;
                                 
-                                // Si la parte parece ser un atributo que empieza con una palabra seguida de :
-                                // Ejemplo: msid:xxx o cname:xxx
-                                if (part.match(/^[a-z]+:/i)) {
-                                    // Si ya empieza con a=, agregarlo tal cual
-                                    if (part.startsWith('a=')) {
-                                        cleanedLines.push(part);
-                                        if (part.startsWith('a=msid:')) {
-                                            currentMsidLine = part;
+                                    // Si la parte parece ser un atributo que empieza con una palabra seguida de :
+                                    // Ejemplo: msid:xxx o cname:xxx
+                                    if (part.match(/^[a-z]+:/i)) {
+                                        // Si es msid, saltarlo (eliminamos todas las líneas msid)
+                                        if (part.includes('msid:')) {
+                                            continue;
                                         }
-                                    } else {
-                                        // Agregar a= al inicio
-                                        const newLine = 'a=' + part;
-                                        cleanedLines.push(newLine);
-                                        if (newLine.startsWith('a=msid:')) {
-                                            currentMsidLine = newLine;
+                                        
+                                        // Si ya empieza con a=, agregarlo tal cual (excepto msid)
+                                        if (part.startsWith('a=')) {
+                                            if (!part.startsWith('a=msid:')) {
+                                                cleanedLines.push(part);
+                                            }
+                                        } else {
+                                            // Agregar a= al inicio (excepto si es msid)
+                                            if (!part.startsWith('msid:')) {
+                                                cleanedLines.push('a=' + part);
+                                            }
                                         }
-                                    }
                                 } else {
                                     // Si no tiene :, podría ser un valor que continúa la línea anterior
                                     // En este caso, lo agregamos a la última línea si es un UUID o valor válido
@@ -870,12 +856,11 @@ class VideoCall {
                                             const index = cleanedLines.length - 1;
                                             cleanedLines[index] = currentMsidLine + ' ' + part;
                                             currentMsidLine = cleanedLines[index];
-                                        } else {
-                                            // Si no hay línea msid previa, crear una nueva con este UUID
-                                            // Pero esto es raro, normalmente msid debería venir con :
-                                            cleanedLines.push('a=msid:' + part);
-                                            currentMsidLine = 'a=msid:' + part;
-                                        }
+                                    } else {
+                                        // NO crear líneas msid desde aquí - las eliminamos todas
+                                        // Simplemente saltar este UUID
+                                        continue;
+                                    }
                                     } else {
                                         // Si no es un UUID, intentar agregarlo como atributo
                                         cleanedLines.push('a=' + part);
