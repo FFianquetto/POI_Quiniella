@@ -188,6 +188,36 @@
     </div>
 </div>
 
+<!-- Modal de Llamada Entrante -->
+<div class="modal fade" id="modalLlamadaEntrante" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body text-center p-5">
+                <div class="mb-4">
+                    <i class="fa fa-phone fa-4x text-primary mb-3" style="animation: pulse 1.5s infinite;"></i>
+                    <h4 id="nombre-llamante">Llamada entrante...</h4>
+                    <p class="text-muted">¿Deseas aceptar esta videollamada?</p>
+                </div>
+                <div class="d-flex justify-content-center gap-3">
+                    <button type="button" class="btn btn-success btn-lg rounded-circle" id="btn-aceptar-llamada" style="width: 60px; height: 60px;">
+                        <i class="fa fa-phone"></i>
+                    </button>
+                    <button type="button" class="btn btn-danger btn-lg rounded-circle" id="btn-rechazar-llamada" style="width: 60px; height: 60px;">
+                        <i class="fa fa-phone-slash"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+@keyframes pulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.1); opacity: 0.8; }
+}
+</style>
+
 <div class="modal fade" id="modalVideollamada" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
     <div class="modal-dialog modal-xl">
         <div class="modal-content">

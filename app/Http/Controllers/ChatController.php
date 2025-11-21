@@ -234,15 +234,82 @@ class ChatController extends Controller
 
         $request->validate([
             'tipo' => 'required|in:offer,answer,ice-candidate',
-            'datos' => 'required|array'
+            'datos' => 'required|array',
+            'call_id' => 'nullable|string',
+            'usuario_id' => 'required|integer'
         ]);
 
-        // En una implementación real, aquí procesarías la señalización
-        // y la enviarías al otro usuario a través de WebSockets
+        // Obtener el otro usuario del chat
+        $otroUsuario = $chat->otroUsuario($usuarioId);
+        if (!$otroUsuario) {
+            return response()->json(['error' => 'No se encontró el otro usuario'], 404);
+        }
+
+        // Guardar el mensaje de señalización en cache para que el otro usuario lo recupere
+        $cacheKey = "videollamada_signaling_{$chat->id}_{$otroUsuario->id}";
+        $mensajes = \Illuminate\Support\Facades\Cache::get($cacheKey, []);
+        
+        $mensajes[] = [
+            'tipo' => $request->tipo,
+            'datos' => $request->datos,
+            'call_id' => $request->call_id,
+            'from_usuario_id' => $usuarioId,
+            'timestamp' => now()->toIso8601String()
+        ];
+        
+        // Guardar en cache por 5 minutos
+        \Illuminate\Support\Facades\Cache::put($cacheKey, $mensajes, 300);
+        
+        // Log para debugging en producción (solo en modo debug)
+        if (config('app.debug')) {
+            \Log::info('Señalización WebRTC', [
+                'chat_id' => $chat->id,
+                'usuario_id' => $usuarioId,
+                'tipo' => $request->tipo,
+                'otro_usuario_id' => $otroUsuario->id
+            ]);
+        }
         
         return response()->json([
             'success' => true,
             'mensaje' => 'Señalización procesada'
+        ]);
+    }
+
+    /**
+     * Obtener mensajes de señalización pendientes
+     */
+    public function obtenerSeñalizacion(Request $request, Chat $chat): \Illuminate\Http\JsonResponse
+    {
+        $usuarioId = session('registro_id');
+        
+        if (!$usuarioId) {
+            return response()->json(['error' => 'No autorizado'], 401);
+        }
+
+        if (!$chat->tieneUsuario($usuarioId)) {
+            return response()->json(['error' => 'No tienes acceso a este chat'], 403);
+        }
+
+        // Obtener mensajes de señalización para este usuario
+        $cacheKey = "videollamada_signaling_{$chat->id}_{$usuarioId}";
+        $mensajes = \Illuminate\Support\Facades\Cache::get($cacheKey, []);
+        
+        // Limpiar los mensajes después de leerlos
+        \Illuminate\Support\Facades\Cache::forget($cacheKey);
+        
+        // Log para debugging
+        if (config('app.debug') && count($mensajes) > 0) {
+            \Log::info('Señalización recuperada', [
+                'chat_id' => $chat->id,
+                'usuario_id' => $usuarioId,
+                'mensajes_count' => count($mensajes)
+            ]);
+        }
+        
+        return response()->json([
+            'success' => true,
+            'mensajes' => $mensajes
         ]);
     }
 

@@ -73,6 +73,7 @@ Route::prefix('chat/grupo')->name('chat.grupo.')->group(function () {
 // Rutas para videollamadas
 Route::post('/chats/{chat}/videollamada/iniciar', [ChatController::class, 'iniciarVideollamada'])->name('chat.videollamada.iniciar');
 Route::post('/chats/{chat}/videollamada/señalizacion', [ChatController::class, 'señalizacion'])->name('chat.videollamada.señalizacion');
+Route::get('/chats/{chat}/videollamada/señalizacion', [ChatController::class, 'obtenerSeñalizacion'])->name('chat.videollamada.obtener-señalizacion');
 
 // Rutas para el simulador de torneo
 Route::get('/torneo', [TorneoController::class, 'index'])->name('torneo.index');
