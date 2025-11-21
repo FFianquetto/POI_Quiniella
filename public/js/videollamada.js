@@ -124,7 +124,38 @@ class VideoCall {
     }
     
     showIncomingCallNotification(offerData) {
-        this.incomingCallOffer = offerData;
+        // Limpiar el SDP del offer antes de guardarlo
+        // El offerData puede venir como RTCSessionDescription o como objeto {type, sdp}
+        let cleanedOffer = offerData;
+        
+        if (offerData) {
+            if (offerData.sdp && typeof offerData.sdp === 'string') {
+                // Si tiene sdp como string, limpiarlo
+                cleanedOffer = {
+                    type: offerData.type || 'offer',
+                    sdp: this.cleanSDP(offerData.sdp)
+                };
+            } else if (offerData.type && offerData.sdp) {
+                // Si ya tiene type y sdp, limpiar el sdp
+                cleanedOffer = {
+                    type: offerData.type,
+                    sdp: this.cleanSDP(offerData.sdp)
+                };
+            } else {
+                // Si es un RTCSessionDescription, convertir a objeto y limpiar
+                try {
+                    cleanedOffer = {
+                        type: offerData.type,
+                        sdp: this.cleanSDP(offerData.sdp || '')
+                    };
+                } catch (e) {
+                    console.error('Error al procesar offerData:', e);
+                    cleanedOffer = offerData;
+                }
+            }
+        }
+        
+        this.incomingCallOffer = cleanedOffer;
         this.isRinging = true;
         
         // Mostrar modal de notificación
@@ -324,16 +355,24 @@ class VideoCall {
             
             console.log('Procesando offer con tipo:', offerDataFormatted.type, 'SDP length:', offerDataFormatted.sdp.length);
             
-            // Verificar si hay líneas problemáticas antes de procesar
+            // LIMPIAR el SDP justo antes de usarlo (por si acaso no se limpió antes)
+            const originalSdpLength = offerDataFormatted.sdp.length;
+            offerDataFormatted.sdp = this.cleanSDP(offerDataFormatted.sdp);
+            const cleanedSdpLength = offerDataFormatted.sdp.length;
+            
+            if (originalSdpLength !== cleanedSdpLength) {
+                console.log(`SDP limpiado antes de procesar: ${originalSdpLength} -> ${cleanedSdpLength} caracteres`);
+            }
+            
+            // Verificar que no queden líneas problemáticas
             const sdpLines = offerDataFormatted.sdp.split('\n');
-            const problematicLines = sdpLines.filter(line => {
+            const remainingProblematic = sdpLines.filter(line => {
                 const trimmed = line.trim();
-                // Buscar líneas a=ssrc que tengan múltiples atributos en la misma línea
-                return trimmed.startsWith('a=ssrc:') && trimmed.split(/\s+/).length > 1;
+                return trimmed.startsWith('a=msid:') || trimmed.startsWith('a=cname:');
             });
             
-            if (problematicLines.length > 0) {
-                console.warn('Se encontraron líneas SDP problemáticas, limpiando...', problematicLines);
+            if (remainingProblematic.length > 0) {
+                console.error('ADVERTENCIA: Aún quedan líneas problemáticas después de limpiar:', remainingProblematic);
             }
             
             try {
@@ -341,7 +380,7 @@ class VideoCall {
             } catch (error) {
                 console.error('Error al establecer remote description:', error);
                 console.error('SDP recibido (primeras 500 chars):', offerDataFormatted.sdp.substring(0, 500));
-                console.error('Líneas problemáticas encontradas:', problematicLines);
+                console.error('Líneas problemáticas que aún quedan:', remainingProblematic);
                 throw error;
             }
             
@@ -692,11 +731,27 @@ class VideoCall {
                         throw new Error('El SDP del answer está vacío o inválido');
                     }
                     
+                    // Asegurar que el SDP esté limpio
+                    const originalAnswerLength = answerData.sdp.length;
+                    answerData.sdp = this.cleanSDP(answerData.sdp);
+                    const cleanedAnswerLength = answerData.sdp.length;
+                    
+                    if (originalAnswerLength !== cleanedAnswerLength) {
+                        console.log(`Answer SDP limpiado: ${originalAnswerLength} -> ${cleanedAnswerLength} caracteres`);
+                    }
+                    
                     try {
                         await this.peerConnection.setRemoteDescription(new RTCSessionDescription(answerData));
                     } catch (error) {
                         console.error('Error al establecer remote description (answer):', error);
                         console.error('SDP recibido (primeras 500 chars):', answerData.sdp.substring(0, 500));
+                        // Mostrar líneas problemáticas que puedan quedar
+                        const remainingProblematic = answerData.sdp.split('\n').filter(line => {
+                            return line.includes('a=msid:') || line.includes('a=cname:');
+                        });
+                        if (remainingProblematic.length > 0) {
+                            console.error('Líneas problemáticas que aún quedan:', remainingProblematic);
+                        }
                         throw error;
                     }
                     break;
@@ -764,6 +819,7 @@ class VideoCall {
     
     /**
      * Limpiar y validar el SDP antes de usarlo
+     * Elimina líneas opcionales problemáticas que causan errores de parsing
      */
     cleanSDP(sdp) {
         if (!sdp || typeof sdp !== 'string') {
@@ -776,6 +832,12 @@ class VideoCall {
         // Dividir en líneas
         const lines = sdp.split('\n');
         const cleanedLines = [];
+        
+        // Líneas opcionales que causan problemas y pueden eliminarse
+        const problematicLines = [
+            'a=msid:',      // Identificación de streams (opcional)
+            'a=cname:',     // Nombre de cámara (opcional, puede causar problemas)
+        ];
         
         for (let line of lines) {
             // Eliminar espacios al inicio y final
@@ -792,16 +854,20 @@ class VideoCall {
             // Validar formato de línea SDP
             // Las líneas SDP válidas empiezan con una letra seguida de '='
             if (line.match(/^[a-z]=/i)) {
-                // ELIMINAR todas las líneas a=msid - son opcionales y causan problemas de compatibilidad
-                // Las líneas msid son solo para identificar streams/tracks pero no son necesarias para la conexión
-                if (line.startsWith('a=msid:')) {
-                    console.warn('Línea a=msid eliminada (opcional y problemática):', line);
+                // ELIMINAR líneas opcionales problemáticas
+                let isProblematic = false;
+                for (const problematic of problematicLines) {
+                    if (line.startsWith(problematic)) {
+                        console.warn(`Línea ${problematic} eliminada (opcional y problemática):`, line);
+                        isProblematic = true;
+                        break;
+                    }
+                }
+                if (isProblematic) {
                     continue; // Saltar esta línea completamente
                 }
                 // Limpiar líneas a=ssrc que pueden tener formato incorrecto
-                // Ejemplo problemático: a=ssrc:1554986245 msid:xxx yyy
-                // Debe ser: a=ssrc:1554986245 (en una línea) y a=msid:xxx yyy (en otra)
-                // También: a=ssrc:1607449212 (sin atributos) - debe eliminarse o tener atributos
+                // También: a=ssrc:1607449212 (sin atributos) - debe eliminarse
                 if (line.startsWith('a=ssrc:')) {
                     // Separar por espacios para ver si hay múltiples atributos
                     const parts = line.split(/\s+/);
@@ -819,48 +885,38 @@ class VideoCall {
                             }
                             
                             // Si tiene atributos, procesarlos correctamente
+                            // Pero eliminar cualquier referencia a msid o cname
                             cleanedLines.push(ssrcLine);
                             
-                            // Procesar el resto de las partes
-                            let currentMsidLine = null;
+                            // Procesar el resto de las partes, pero saltar msid y cname
                             for (let i = 1; i < parts.length; i++) {
                                 const part = parts[i].trim();
                                 if (!part) continue;
                                 
-                                    // Si la parte parece ser un atributo que empieza con una palabra seguida de :
-                                    // Ejemplo: msid:xxx o cname:xxx
-                                    if (part.match(/^[a-z]+:/i)) {
-                                        // Si es msid, saltarlo (eliminamos todas las líneas msid)
-                                        if (part.includes('msid:')) {
-                                            continue;
+                                // Saltar msid y cname (ya los eliminamos completamente)
+                                if (part.includes('msid:') || part.includes('cname:')) {
+                                    continue;
+                                }
+                                
+                                // Si la parte parece ser un atributo válido
+                                if (part.match(/^[a-z]+:/i)) {
+                                    // Si ya empieza con a=, agregarlo tal cual (excepto msid y cname)
+                                    if (part.startsWith('a=')) {
+                                        if (!part.startsWith('a=msid:') && !part.startsWith('a=cname:')) {
+                                            cleanedLines.push(part);
                                         }
-                                        
-                                        // Si ya empieza con a=, agregarlo tal cual (excepto msid)
-                                        if (part.startsWith('a=')) {
-                                            if (!part.startsWith('a=msid:')) {
-                                                cleanedLines.push(part);
-                                            }
-                                        } else {
-                                            // Agregar a= al inicio (excepto si es msid)
-                                            if (!part.startsWith('msid:')) {
-                                                cleanedLines.push('a=' + part);
-                                            }
+                                    } else {
+                                        // Agregar a= al inicio (excepto si es msid o cname)
+                                        if (!part.startsWith('msid:') && !part.startsWith('cname:')) {
+                                            cleanedLines.push('a=' + part);
                                         }
+                                    }
                                 } else {
                                     // Si no tiene :, podría ser un valor que continúa la línea anterior
-                                    // En este caso, lo agregamos a la última línea si es un UUID o valor válido
+                                    // Pero si es un UUID, probablemente es parte de msid, así que lo saltamos
                                     if (part.match(/^[0-9a-f-]{8,}$/i)) {
-                                        // Es un UUID o valor hexadecimal
-                                        if (currentMsidLine) {
-                                            // Agregar el segundo UUID a la línea msid existente
-                                            const index = cleanedLines.length - 1;
-                                            cleanedLines[index] = currentMsidLine + ' ' + part;
-                                            currentMsidLine = cleanedLines[index];
-                                    } else {
-                                        // NO crear líneas msid desde aquí - las eliminamos todas
-                                        // Simplemente saltar este UUID
+                                        // Es un UUID, probablemente parte de msid, saltarlo
                                         continue;
-                                    }
                                     } else {
                                         // Si no es un UUID, intentar agregarlo como atributo
                                         cleanedLines.push('a=' + part);
