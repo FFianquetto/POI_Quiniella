@@ -277,7 +277,7 @@ class ChatController extends Controller
     }
 
     /**
-     * Obtener mensajes de señalización pendientes
+     * Obtener mensajes de señalización pendientes (polling tradicional)
      */
     public function obtenerSeñalizacion(Request $request, Chat $chat): \Illuminate\Http\JsonResponse
     {
@@ -310,6 +310,83 @@ class ChatController extends Controller
         return response()->json([
             'success' => true,
             'mensajes' => $mensajes
+        ]);
+    }
+
+    /**
+     * Server-Sent Events para señalización en tiempo real
+     */
+    public function señalizacionStream(Request $request, Chat $chat)
+    {
+        $usuarioId = session('registro_id');
+        
+        if (!$usuarioId) {
+            return response('No autorizado', 401);
+        }
+
+        if (!$chat->tieneUsuario($usuarioId)) {
+            return response('No tienes acceso a este chat', 403);
+        }
+
+        // Configurar headers para SSE
+        return response()->stream(function () use ($chat, $usuarioId) {
+            $cacheKey = "videollamada_signaling_{$chat->id}_{$usuarioId}";
+            $lastCheck = now();
+            $timeout = 60; // 60 segundos de timeout
+            $startTime = time();
+            $heartbeatInterval = 5; // Enviar heartbeat cada 5 segundos
+            
+            // Enviar comentario inicial para establecer conexión
+            echo ": connected\n\n";
+            ob_flush();
+            flush();
+            
+            while (true) {
+                // Verificar timeout
+                if (time() - $startTime > $timeout) {
+                    echo "data: " . json_encode(['type' => 'timeout']) . "\n\n";
+                    ob_flush();
+                    flush();
+                    break;
+                }
+                
+                // Verificar si hay mensajes nuevos
+                $mensajes = \Illuminate\Support\Facades\Cache::get($cacheKey, []);
+                
+                if (!empty($mensajes)) {
+                    // Enviar todos los mensajes pendientes
+                    foreach ($mensajes as $mensaje) {
+                        echo "data: " . json_encode($mensaje) . "\n\n";
+                        ob_flush();
+                        flush();
+                    }
+                    
+                    // Limpiar los mensajes después de enviarlos
+                    \Illuminate\Support\Facades\Cache::forget($cacheKey);
+                    break; // Cerrar la conexión después de enviar los mensajes
+                }
+                
+                // Enviar heartbeat cada 5 segundos para mantener la conexión viva
+                if (now()->diffInSeconds($lastCheck) >= $heartbeatInterval) {
+                    echo ": heartbeat\n\n";
+                    ob_flush();
+                    flush();
+                    $lastCheck = now();
+                }
+                
+                // Esperar 500ms antes de la siguiente verificación
+                usleep(500000);
+                
+                // Verificar si la conexión sigue viva
+                if (connection_aborted()) {
+                    break;
+                }
+            }
+        }, 200, [
+            'Content-Type' => 'text/event-stream',
+            'Cache-Control' => 'no-cache',
+            'Connection' => 'keep-alive',
+            'X-Accel-Buffering' => 'no', // Deshabilitar buffering en Nginx
         ]);
     }
 

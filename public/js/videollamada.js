@@ -13,6 +13,7 @@ class VideoCall {
         this.callId = null;
         this.isInitiator = false;
         this.signalingInterval = null;
+        this.signalingEventSource = null;
         this.incomingCallOffer = null;
         this.callNotificationAudio = null;
         this.isRinging = false;
@@ -56,6 +57,9 @@ class VideoCall {
         this.initializeElements();
         this.bindEvents();
         this.initializeCallNotification();
+        
+        // Iniciar escucha de llamadas entrantes automáticamente
+        this.startSignalingPolling();
     }
     
     initializeElements() {
@@ -580,11 +584,96 @@ class VideoCall {
     }
     
     startSignalingPolling() {
+        // Solo iniciar si no hay una conexión activa
+        if (this.signalingEventSource || this.signalingInterval) {
+            return;
+        }
+        
+        // Intentar usar Server-Sent Events primero (más eficiente)
+        if (typeof EventSource !== 'undefined') {
+            this.startSignalingSSE();
+        } else {
+            // Fallback a polling tradicional si SSE no está disponible
+            this.startSignalingPollingFallback();
+        }
+    }
+    
+    startSignalingSSE() {
+        try {
+            // Crear conexión SSE (usa cookies de sesión automáticamente)
+            const url = `/chats/${this.chatId}/videollamada/stream`;
+            this.signalingEventSource = new EventSource(url);
+            
+            this.signalingEventSource.onopen = () => {
+                console.log('SSE conectado para señalización');
+            };
+            
+            this.signalingEventSource.onmessage = async (event) => {
+                // Ignorar heartbeats (comentarios)
+                if (event.data.startsWith(':')) {
+                    return;
+                }
+                
+                try {
+                    const data = JSON.parse(event.data);
+                    
+                    if (data.type === 'timeout') {
+                        console.log('SSE timeout, reconectando...');
+                        this.stopSignalingPolling();
+                        // Reconectar después de un breve delay
+                        setTimeout(() => this.startSignalingPolling(), 1000);
+                        return;
+                    }
+                    
+                    // Procesar mensaje de señalización
+                    if (data.tipo && data.datos) {
+                        console.log('Mensaje SSE recibido:', data.tipo);
+                        
+                        // Si es un offer y no estamos en llamada, mostrar notificación
+                        if (data.tipo === 'offer' && !this.isInCall && !this.peerConnection) {
+                            console.log('Llamada entrante detectada vía SSE');
+                            this.showIncomingCallNotification(data.datos);
+                            return; // No procesar el offer todavía, esperar a que el usuario acepte
+                        }
+                        
+                        // Para otros tipos de mensajes, necesitamos peerConnection
+                        if (!this.peerConnection) {
+                            console.warn('Mensaje recibido pero no hay peerConnection activa');
+                            return;
+                        }
+                        
+                        await this.handleSignalingMessage(data.tipo, data.datos);
+                    }
+                } catch (error) {
+                    // Si no es JSON, probablemente es un heartbeat
+                    if (error.message && error.message.includes('JSON')) {
+                        return;
+                    }
+                    console.error('Error al procesar mensaje SSE:', error);
+                }
+            };
+            
+            this.signalingEventSource.onerror = (error) => {
+                console.warn('Error en SSE, cambiando a polling fallback');
+                this.stopSignalingPolling();
+                // Cambiar a polling tradicional si SSE falla
+                setTimeout(() => this.startSignalingPollingFallback(), 1000);
+            };
+            
+            console.log('SSE iniciado para señalización');
+        } catch (error) {
+            console.warn('No se pudo iniciar SSE, usando polling fallback:', error);
+            this.startSignalingPollingFallback();
+        }
+    }
+    
+    startSignalingPollingFallback() {
         let pollingAttempts = 0;
         const maxPollingAttempts = 300; // 10 minutos máximo (300 * 2 segundos)
         
         this.signalingInterval = setInterval(async () => {
-            if (!this.peerConnection || this.isInCall) {
+            // No salir si estamos en llamada, pero sí si tenemos peerConnection activa esperando respuesta
+            if (this.isInCall) {
                 pollingAttempts = 0; // Resetear contador si ya estamos en llamada
                 return;
             }
@@ -634,6 +723,19 @@ class VideoCall {
                 const result = await response.json();
                 if (result.success && result.mensajes && result.mensajes.length > 0) {
                     for (const mensaje of result.mensajes) {
+                        // Si es un offer y no estamos en llamada, mostrar notificación
+                        if (mensaje.tipo === 'offer' && !this.isInCall && !this.peerConnection) {
+                            console.log('Llamada entrante detectada vía polling');
+                            this.showIncomingCallNotification(mensaje.datos);
+                            continue; // No procesar el offer todavía, esperar a que el usuario acepte
+                        }
+                        
+                        // Para otros tipos de mensajes, necesitamos peerConnection
+                        if (!this.peerConnection) {
+                            console.warn('Mensaje recibido pero no hay peerConnection activa');
+                            continue;
+                        }
+                        
                         await this.handleSignalingMessage(mensaje.tipo, mensaje.datos);
                     }
                     pollingAttempts = 0; // Resetear contador al recibir mensajes
@@ -649,6 +751,13 @@ class VideoCall {
     }
     
     stopSignalingPolling() {
+        // Cerrar SSE si está activo
+        if (this.signalingEventSource) {
+            this.signalingEventSource.close();
+            this.signalingEventSource = null;
+        }
+        
+        // Detener polling tradicional si está activo
         if (this.signalingInterval) {
             clearInterval(this.signalingInterval);
             this.signalingInterval = null;
