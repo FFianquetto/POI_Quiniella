@@ -792,6 +792,28 @@ class VideoCall {
             // Validar formato de línea SDP
             // Las líneas SDP válidas empiezan con una letra seguida de '='
             if (line.match(/^[a-z]=/i)) {
+                // Limpiar líneas a=msid que pueden tener formato problemático
+                // Ejemplo problemático: a=msid:uuid1 uuid2 (dos UUIDs en la misma línea)
+                // WebRTC rechaza este formato, así que solo mantenemos el primer UUID
+                if (line.startsWith('a=msid:')) {
+                    const msidMatch = line.match(/^a=msid:([^\s]+)(?:\s+(.+))?$/);
+                    if (msidMatch) {
+                        const firstUuid = msidMatch[1];
+                        const secondPart = msidMatch[2];
+                        
+                        // Si hay una segunda parte (segundo UUID), eliminarla
+                        // WebRTC solo acepta un UUID en la línea msid
+                        if (secondPart && secondPart.match(/^[0-9a-f-]{8,}$/i)) {
+                            // Solo mantener el primer UUID
+                            console.warn('Línea a=msid con dos UUIDs detectada, usando solo el primero:', line);
+                            cleanedLines.push(`a=msid:${firstUuid}`);
+                        } else {
+                            // Solo un UUID, agregarlo normalmente
+                            cleanedLines.push(line);
+                        }
+                        continue;
+                    }
+                }
                 // Limpiar líneas a=ssrc que pueden tener formato incorrecto
                 // Ejemplo problemático: a=ssrc:1554986245 msid:xxx yyy
                 // Debe ser: a=ssrc:1554986245 (en una línea) y a=msid:xxx yyy (en otra)
@@ -842,13 +864,15 @@ class VideoCall {
                                     // Si no tiene :, podría ser un valor que continúa la línea anterior
                                     // En este caso, lo agregamos a la última línea si es un UUID o valor válido
                                     if (part.match(/^[0-9a-f-]{8,}$/i)) {
-                                        // Es un UUID o valor hexadecimal, agregarlo a la última línea si es msid
+                                        // Es un UUID o valor hexadecimal
                                         if (currentMsidLine) {
+                                            // Agregar el segundo UUID a la línea msid existente
                                             const index = cleanedLines.length - 1;
                                             cleanedLines[index] = currentMsidLine + ' ' + part;
                                             currentMsidLine = cleanedLines[index];
                                         } else {
-                                            // Si no hay línea msid, crear una nueva
+                                            // Si no hay línea msid previa, crear una nueva con este UUID
+                                            // Pero esto es raro, normalmente msid debería venir con :
                                             cleanedLines.push('a=msid:' + part);
                                             currentMsidLine = 'a=msid:' + part;
                                         }
