@@ -368,11 +368,17 @@ class VideoCall {
             const sdpLines = offerDataFormatted.sdp.split('\n');
             const remainingProblematic = sdpLines.filter(line => {
                 const trimmed = line.trim();
-                return trimmed.startsWith('a=msid:') || trimmed.startsWith('a=cname:');
+                return trimmed.startsWith('a=msid:') || 
+                       trimmed.startsWith('a=cname:') || 
+                       trimmed.startsWith('a=ssrc:') || 
+                       trimmed.startsWith('a=ssrc-group:') ||
+                       trimmed.startsWith('a=label:');
             });
             
             if (remainingProblematic.length > 0) {
                 console.error('ADVERTENCIA: Aún quedan líneas problemáticas después de limpiar:', remainingProblematic);
+                // Limpiar nuevamente si quedan líneas problemáticas
+                offerDataFormatted.sdp = this.cleanSDP(offerDataFormatted.sdp);
             }
             
             try {
@@ -740,18 +746,29 @@ class VideoCall {
                         console.log(`Answer SDP limpiado: ${originalAnswerLength} -> ${cleanedAnswerLength} caracteres`);
                     }
                     
+                    // Verificar que no queden líneas problemáticas
+                    const answerSdpLines = answerData.sdp.split('\n');
+                    const remainingProblematic = answerSdpLines.filter(line => {
+                        const trimmed = line.trim();
+                        return trimmed.startsWith('a=msid:') || 
+                               trimmed.startsWith('a=cname:') || 
+                               trimmed.startsWith('a=ssrc:') || 
+                               trimmed.startsWith('a=ssrc-group:') ||
+                               trimmed.startsWith('a=label:');
+                    });
+                    
+                    if (remainingProblematic.length > 0) {
+                        console.error('ADVERTENCIA: Aún quedan líneas problemáticas en answer después de limpiar:', remainingProblematic);
+                        // Limpiar nuevamente si quedan líneas problemáticas
+                        answerData.sdp = this.cleanSDP(answerData.sdp);
+                    }
+                    
                     try {
                         await this.peerConnection.setRemoteDescription(new RTCSessionDescription(answerData));
                     } catch (error) {
                         console.error('Error al establecer remote description (answer):', error);
                         console.error('SDP recibido (primeras 500 chars):', answerData.sdp.substring(0, 500));
-                        // Mostrar líneas problemáticas que puedan quedar
-                        const remainingProblematic = answerData.sdp.split('\n').filter(line => {
-                            return line.includes('a=msid:') || line.includes('a=cname:');
-                        });
-                        if (remainingProblematic.length > 0) {
-                            console.error('Líneas problemáticas que aún quedan:', remainingProblematic);
-                        }
+                        console.error('Líneas problemáticas que aún quedan:', remainingProblematic);
                         throw error;
                     }
                     break;
@@ -833,10 +850,14 @@ class VideoCall {
         const lines = sdp.split('\n');
         const cleanedLines = [];
         
-        // Líneas opcionales que causan problemas y pueden eliminarse
+        // Líneas opcionales que causan problemas y pueden eliminarse completamente
+        // Estas líneas NO son necesarias para establecer la conexión WebRTC
+        // IMPORTANTE: NO eliminar a=mid: porque es necesario para identificar medios
         const problematicLines = [
-            'a=msid:',      // Identificación de streams (opcional)
-            'a=cname:',     // Nombre de cámara (opcional, puede causar problemas)
+            'a=msid:',          // Identificación de streams (opcional)
+            'a=cname:',         // Nombre de cámara (opcional)
+            'a=ssrc-group:',    // Agrupación de SSRC (opcional, causa problemas)
+            'a=label:',         // Etiquetas (opcional)
         ];
         
         for (let line of lines) {
@@ -866,75 +887,15 @@ class VideoCall {
                 if (isProblematic) {
                     continue; // Saltar esta línea completamente
                 }
-                // Limpiar líneas a=ssrc que pueden tener formato incorrecto
-                // También: a=ssrc:1607449212 (sin atributos) - debe eliminarse
-                if (line.startsWith('a=ssrc:')) {
-                    // Separar por espacios para ver si hay múltiples atributos
-                    const parts = line.split(/\s+/);
-                    
-                    if (parts.length > 0) {
-                        // La primera parte es a=ssrc:ID
-                        const ssrcLine = parts[0];
-                        if (ssrcLine.match(/^a=ssrc:\d+/)) {
-                            // Si solo hay una parte (solo a=ssrc:ID sin atributos), eliminarla
-                            // porque WebRTC espera al menos 2 campos en una línea a=ssrc:
-                            if (parts.length === 1) {
-                                // Línea incompleta, saltarla
-                                console.warn('Línea a=ssrc incompleta detectada y eliminada:', line);
-                                continue;
-                            }
-                            
-                            // Si tiene atributos, procesarlos correctamente
-                            // Pero eliminar cualquier referencia a msid o cname
-                            cleanedLines.push(ssrcLine);
-                            
-                            // Procesar el resto de las partes, pero saltar msid y cname
-                            for (let i = 1; i < parts.length; i++) {
-                                const part = parts[i].trim();
-                                if (!part) continue;
-                                
-                                // Saltar msid y cname (ya los eliminamos completamente)
-                                if (part.includes('msid:') || part.includes('cname:')) {
-                                    continue;
-                                }
-                                
-                                // Si la parte parece ser un atributo válido
-                                if (part.match(/^[a-z]+:/i)) {
-                                    // Si ya empieza con a=, agregarlo tal cual (excepto msid y cname)
-                                    if (part.startsWith('a=')) {
-                                        if (!part.startsWith('a=msid:') && !part.startsWith('a=cname:')) {
-                                            cleanedLines.push(part);
-                                        }
-                                    } else {
-                                        // Agregar a= al inicio (excepto si es msid o cname)
-                                        if (!part.startsWith('msid:') && !part.startsWith('cname:')) {
-                                            cleanedLines.push('a=' + part);
-                                        }
-                                    }
-                                } else {
-                                    // Si no tiene :, podría ser un valor que continúa la línea anterior
-                                    // Pero si es un UUID, probablemente es parte de msid, así que lo saltamos
-                                    if (part.match(/^[0-9a-f-]{8,}$/i)) {
-                                        // Es un UUID, probablemente parte de msid, saltarlo
-                                        continue;
-                                    } else {
-                                        // Si no es un UUID, intentar agregarlo como atributo
-                                        cleanedLines.push('a=' + part);
-                                    }
-                                }
-                            }
-                        } else {
-                            // Si no es un formato válido de ssrc, intentar limpiarlo
-                            cleanedLines.push(line);
-                        }
-                    } else {
-                        // Línea vacía después de a=ssrc:, eliminarla
-                        continue;
-                    }
-                } else {
-                    // Para otras líneas SDP, agregarlas tal cual
-                    cleanedLines.push(line);
+                // ELIMINAR todas las líneas a=ssrc y a=ssrc-group - son opcionales y causan muchos problemas
+                // Las líneas ssrc son para sincronización de streams pero no son necesarias
+                if (line.startsWith('a=ssrc:') || line.startsWith('a=ssrc-group:')) {
+                    console.warn('Línea a=ssrc/a=ssrc-group eliminada (opcional y problemática):', line);
+                    continue; // Saltar completamente
                 }
+                
+                // Para otras líneas SDP, agregarlas tal cual
+                cleanedLines.push(line);
             } else {
                 // Si no es una línea SDP válida, intentar limpiarla o saltarla
                 // Algunas líneas pueden ser comentarios o metadatos
