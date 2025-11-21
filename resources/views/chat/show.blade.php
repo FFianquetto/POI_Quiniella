@@ -132,7 +132,7 @@
                 </div>
 
                 <div class="card-footer">
-                    <form action="{{ route('chat.mensaje', $chat->id) }}" method="POST" enctype="multipart/form-data" id="chat-form">
+                    <form action="{{ route('chat.mensaje', ['chat' => $chat->id]) }}" method="POST" enctype="multipart/form-data" id="chat-form">
                         @csrf
                         <div class="row">
                             <div class="col-md-12">
@@ -157,7 +157,7 @@
                                         <i class="fa fa-phone"></i>
                                     </button>
                                     
-                                    <button type="submit" class="btn btn-primary">
+                                    <button type="submit" class="btn btn-primary" id="btn-enviar-mensaje">
                                         <i class="fa fa-paper-plane"></i> Enviar
                                     </button>
                                 </div>
@@ -587,13 +587,25 @@ document.addEventListener('DOMContentLoaded', function() {
     const chatForm = document.getElementById('chat-form');
     const mensajeTipo = document.getElementById('mensaje-tipo');
     
-    // Asegurar que el formulario se envíe correctamente sin interceptar
+    // Validar y enviar el formulario correctamente
     chatForm.addEventListener('submit', function(e) {
-        // No interceptar el submit, dejar que el formulario se envíe normalmente
-        // Solo validar que haya contenido o archivo
+        // Obtener elementos del formulario
         const mensajeTexto = document.getElementById('mensaje-texto');
         const archivoInput = document.getElementById('archivo-input');
+        const formAction = chatForm.getAttribute('action');
         
+        // Verificar que el formulario tenga la acción correcta
+        // Debe ser algo como /chats/7/mensaje, NO /chats/7/videollamada/señalizacion
+        if (formAction && formAction.includes('videollamada')) {
+            console.error('ERROR: El formulario tiene una acción incorrecta:', formAction);
+            e.preventDefault();
+            alert('Error: El formulario tiene una configuración incorrecta. Por favor, recarga la página.');
+            return false;
+        }
+        
+        console.log('Formulario enviado a:', formAction);
+        
+        // Validar que haya contenido o archivo
         if (!mensajeTexto.value.trim() && (!archivoInput.files || archivoInput.files.length === 0)) {
             e.preventDefault();
             alert('Por favor, escribe un mensaje o adjunta un archivo.');
@@ -610,8 +622,20 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
         
-        // Permitir que el formulario se envíe normalmente
-        return true;
+        // Verificar que la acción sea correcta ANTES de permitir el envío
+        // Debe ser /chats/{chat}/mensaje, NO /chats/{chat}/videollamada/señalizacion
+        const actionCorrecta = formAction && formAction.includes('/mensaje') && !formAction.includes('videollamada');
+        
+        if (!actionCorrecta) {
+            e.preventDefault();
+            console.error('ERROR: El formulario tiene una acción incorrecta:', formAction);
+            console.error('Acción esperada: /chats/{chat}/mensaje');
+            alert('Error: El formulario está configurado incorrectamente. Por favor, recarga la página.');
+            return false;
+        }
+        
+        // Si todo está bien, permitir que el formulario se envíe normalmente
+        console.log('Formulario correcto. Enviando a:', formAction);
     });
 
     btnAdjuntar.addEventListener('click', function() {
