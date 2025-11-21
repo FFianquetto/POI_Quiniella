@@ -292,12 +292,16 @@ class VideoCall {
             if (offerData.type && offerData.sdp) {
                 offerDataFormatted = {
                     type: offerData.type,
-                    sdp: offerData.sdp
+                    sdp: this.cleanSDP(offerData.sdp)
                 };
             } else if (typeof offerData === 'string') {
                 // Si es un string, intentar parsearlo
                 try {
-                    offerDataFormatted = JSON.parse(offerData);
+                    const parsed = JSON.parse(offerData);
+                    offerDataFormatted = {
+                        type: parsed.type,
+                        sdp: this.cleanSDP(parsed.sdp)
+                    };
                 } catch (e) {
                     throw new Error('El formato del offer es inválido');
                 }
@@ -305,11 +309,11 @@ class VideoCall {
                 // Intentar extraer type y sdp del objeto
                 offerDataFormatted = {
                     type: offerData.type || 'offer',
-                    sdp: offerData.sdp || ''
+                    sdp: this.cleanSDP(offerData.sdp || '')
                 };
             }
             
-            if (!offerDataFormatted.sdp || typeof offerDataFormatted.sdp !== 'string') {
+            if (!offerDataFormatted.sdp || typeof offerDataFormatted.sdp !== 'string' || offerDataFormatted.sdp.trim().length === 0) {
                 console.error('Offer recibido:', offerData);
                 throw new Error('El SDP del offer está vacío o inválido');
             }
@@ -319,7 +323,27 @@ class VideoCall {
             }
             
             console.log('Procesando offer con tipo:', offerDataFormatted.type, 'SDP length:', offerDataFormatted.sdp.length);
-            await this.peerConnection.setRemoteDescription(new RTCSessionDescription(offerDataFormatted));
+            
+            // Verificar si hay líneas problemáticas antes de procesar
+            const sdpLines = offerDataFormatted.sdp.split('\n');
+            const problematicLines = sdpLines.filter(line => {
+                const trimmed = line.trim();
+                // Buscar líneas a=ssrc que tengan múltiples atributos en la misma línea
+                return trimmed.startsWith('a=ssrc:') && trimmed.split(/\s+/).length > 1;
+            });
+            
+            if (problematicLines.length > 0) {
+                console.warn('Se encontraron líneas SDP problemáticas, limpiando...', problematicLines);
+            }
+            
+            try {
+                await this.peerConnection.setRemoteDescription(new RTCSessionDescription(offerDataFormatted));
+            } catch (error) {
+                console.error('Error al establecer remote description:', error);
+                console.error('SDP recibido (primeras 500 chars):', offerDataFormatted.sdp.substring(0, 500));
+                console.error('Líneas problemáticas encontradas:', problematicLines);
+                throw error;
+            }
             
             // Crear y enviar answer
             const answer = await this.peerConnection.createAnswer();
@@ -585,14 +609,20 @@ class VideoCall {
                 if (datos.type && datos.sdp) {
                     datosSerializados = {
                         type: datos.type,
-                        sdp: datos.sdp
+                        sdp: this.cleanSDP(datos.sdp)
                     };
                 } else if (datos.toJSON) {
-                    // Si tiene método toJSON, usarlo
+                    // Si tiene método toJSON, usarlo y limpiar el SDP
                     datosSerializados = datos.toJSON();
+                    if (datosSerializados.sdp) {
+                        datosSerializados.sdp = this.cleanSDP(datosSerializados.sdp);
+                    }
                 } else {
                     // Serializar normalmente
                     datosSerializados = JSON.parse(JSON.stringify(datos));
+                    if (datosSerializados.sdp) {
+                        datosSerializados.sdp = this.cleanSDP(datosSerializados.sdp);
+                    }
                 }
             }
             
@@ -656,12 +686,19 @@ class VideoCall {
                     // Asegurar que datos tenga el formato correcto
                     const answerData = {
                         type: datos.type || 'answer',
-                        sdp: datos.sdp || datos.sdp
+                        sdp: this.cleanSDP(datos.sdp || '')
                     };
-                    if (!answerData.sdp) {
+                    if (!answerData.sdp || answerData.sdp.trim().length === 0) {
                         throw new Error('El SDP del answer está vacío o inválido');
                     }
-                    await this.peerConnection.setRemoteDescription(new RTCSessionDescription(answerData));
+                    
+                    try {
+                        await this.peerConnection.setRemoteDescription(new RTCSessionDescription(answerData));
+                    } catch (error) {
+                        console.error('Error al establecer remote description (answer):', error);
+                        console.error('SDP recibido (primeras 500 chars):', answerData.sdp.substring(0, 500));
+                        throw error;
+                    }
                     break;
                     
                 case 'ice-candidate':
@@ -723,6 +760,113 @@ class VideoCall {
         setTimeout(() => {
             this.endCall();
         }, 3000);
+    }
+    
+    /**
+     * Limpiar y validar el SDP antes de usarlo
+     */
+    cleanSDP(sdp) {
+        if (!sdp || typeof sdp !== 'string') {
+            return '';
+        }
+        
+        // Normalizar saltos de línea
+        sdp = sdp.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+        
+        // Dividir en líneas
+        const lines = sdp.split('\n');
+        const cleanedLines = [];
+        
+        for (let line of lines) {
+            // Eliminar espacios al inicio y final
+            line = line.trim();
+            
+            // Saltar líneas vacías
+            if (!line) {
+                continue;
+            }
+            
+            // Eliminar caracteres de control
+            line = line.replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/g, '');
+            
+            // Validar formato de línea SDP
+            // Las líneas SDP válidas empiezan con una letra seguida de '='
+            if (line.match(/^[a-z]=/i)) {
+                // Limpiar líneas a=ssrc que pueden tener formato incorrecto
+                // Ejemplo problemático: a=ssrc:1554986245 msid:xxx yyy
+                // Debe ser: a=ssrc:1554986245 (en una línea) y a=msid:xxx yyy (en otra)
+                if (line.startsWith('a=ssrc:')) {
+                    // Separar por espacios para ver si hay múltiples atributos
+                    const parts = line.split(/\s+/);
+                    
+                    if (parts.length > 0) {
+                        // La primera parte es a=ssrc:ID
+                        const ssrcLine = parts[0];
+                        if (ssrcLine.match(/^a=ssrc:\d+/)) {
+                            cleanedLines.push(ssrcLine);
+                            
+                            // Procesar el resto de las partes
+                            let currentMsidLine = null;
+                            for (let i = 1; i < parts.length; i++) {
+                                const part = parts[i].trim();
+                                if (!part) continue;
+                                
+                                // Si la parte parece ser un atributo que empieza con una palabra seguida de :
+                                // Ejemplo: msid:xxx o cname:xxx
+                                if (part.match(/^[a-z]+:/i)) {
+                                    // Si ya empieza con a=, agregarlo tal cual
+                                    if (part.startsWith('a=')) {
+                                        cleanedLines.push(part);
+                                        if (part.startsWith('a=msid:')) {
+                                            currentMsidLine = part;
+                                        }
+                                    } else {
+                                        // Agregar a= al inicio
+                                        const newLine = 'a=' + part;
+                                        cleanedLines.push(newLine);
+                                        if (newLine.startsWith('a=msid:')) {
+                                            currentMsidLine = newLine;
+                                        }
+                                    }
+                                } else {
+                                    // Si no tiene :, podría ser un valor que continúa la línea anterior
+                                    // En este caso, lo agregamos a la última línea si es un UUID o valor válido
+                                    if (part.match(/^[0-9a-f-]{8,}$/i)) {
+                                        // Es un UUID o valor hexadecimal, agregarlo a la última línea si es msid
+                                        if (currentMsidLine) {
+                                            const index = cleanedLines.length - 1;
+                                            cleanedLines[index] = currentMsidLine + ' ' + part;
+                                            currentMsidLine = cleanedLines[index];
+                                        } else {
+                                            // Si no hay línea msid, crear una nueva
+                                            cleanedLines.push('a=msid:' + part);
+                                            currentMsidLine = 'a=msid:' + part;
+                                        }
+                                    } else {
+                                        // Si no es un UUID, intentar agregarlo como atributo
+                                        cleanedLines.push('a=' + part);
+                                    }
+                                }
+                            }
+                        } else {
+                            // Si no es un formato válido de ssrc, intentar limpiarlo
+                            cleanedLines.push(line);
+                        }
+                    }
+                } else {
+                    // Para otras líneas SDP, agregarlas tal cual
+                    cleanedLines.push(line);
+                }
+            } else {
+                // Si no es una línea SDP válida, intentar limpiarla o saltarla
+                // Algunas líneas pueden ser comentarios o metadatos
+                if (line.length > 0 && !line.startsWith('#')) {
+                    cleanedLines.push(line);
+                }
+            }
+        }
+        
+        return cleanedLines.join('\r\n');
     }
     
     startSignalingPolling() {
