@@ -795,6 +795,7 @@ class VideoCall {
                 // Limpiar líneas a=ssrc que pueden tener formato incorrecto
                 // Ejemplo problemático: a=ssrc:1554986245 msid:xxx yyy
                 // Debe ser: a=ssrc:1554986245 (en una línea) y a=msid:xxx yyy (en otra)
+                // También: a=ssrc:1607449212 (sin atributos) - debe eliminarse o tener atributos
                 if (line.startsWith('a=ssrc:')) {
                     // Separar por espacios para ver si hay múltiples atributos
                     const parts = line.split(/\s+/);
@@ -803,6 +804,15 @@ class VideoCall {
                         // La primera parte es a=ssrc:ID
                         const ssrcLine = parts[0];
                         if (ssrcLine.match(/^a=ssrc:\d+/)) {
+                            // Si solo hay una parte (solo a=ssrc:ID sin atributos), eliminarla
+                            // porque WebRTC espera al menos 2 campos en una línea a=ssrc:
+                            if (parts.length === 1) {
+                                // Línea incompleta, saltarla
+                                console.warn('Línea a=ssrc incompleta detectada y eliminada:', line);
+                                continue;
+                            }
+                            
+                            // Si tiene atributos, procesarlos correctamente
                             cleanedLines.push(ssrcLine);
                             
                             // Procesar el resto de las partes
@@ -852,6 +862,9 @@ class VideoCall {
                             // Si no es un formato válido de ssrc, intentar limpiarlo
                             cleanedLines.push(line);
                         }
+                    } else {
+                        // Línea vacía después de a=ssrc:, eliminarla
+                        continue;
                     }
                 } else {
                     // Para otras líneas SDP, agregarlas tal cual
