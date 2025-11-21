@@ -113,7 +113,7 @@
             </div>
         </div>
 
-        <!-- Información del User -->
+        <!-- Información del -->
         <div class="col-md-4 mb-4">
             <div class="card mundial-card">
                 <div class="card-header bg-primary">
