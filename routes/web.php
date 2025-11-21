@@ -75,6 +75,7 @@ Route::post('/chats/{chat}/videollamada/iniciar', [ChatController::class, 'inici
 Route::post('/chats/{chat}/videollamada/señalizacion', [ChatController::class, 'señalizacion'])->name('chat.videollamada.señalizacion');
 Route::get('/chats/{chat}/videollamada/señalizacion', [ChatController::class, 'obtenerSeñalizacion'])->name('chat.videollamada.obtener-señalizacion');
 Route::get('/chats/{chat}/videollamada/stream', [ChatController::class, 'señalizacionStream'])->name('chat.videollamada.stream');
+Route::post('/chats/{chat}/videollamada/perdida', [ChatController::class, 'registrarLlamadaPerdida'])->name('chat.videollamada.perdida');
 
 // Rutas para el simulador de torneo
 Route::get('/torneo', [TorneoController::class, 'index'])->name('torneo.index');

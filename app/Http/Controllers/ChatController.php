@@ -218,6 +218,45 @@ class ChatController extends Controller
     }
 
     /**
+     * Registrar llamada perdida en el chat
+     */
+    public function registrarLlamadaPerdida(Request $request, Chat $chat): \Illuminate\Http\JsonResponse
+    {
+        $usuarioId = session('registro_id');
+        
+        if (!$usuarioId) {
+            return response()->json(['error' => 'No autorizado'], 401);
+        }
+
+        if (!$chat->tieneUsuario($usuarioId)) {
+            return response()->json(['error' => 'No tienes acceso a este chat'], 403);
+        }
+
+        // Obtener el otro usuario
+        $otroUsuario = $chat->otroUsuario($usuarioId);
+        if (!$otroUsuario) {
+            return response()->json(['error' => 'No se encontró el otro usuario'], 404);
+        }
+
+        // Crear mensaje de llamada perdida
+        // El mensaje se crea como si lo enviara el sistema, pero se muestra como del usuario que rechazó
+        $mensaje = $chat->mensajes()->create([
+            'registro_id_emisor' => $otroUsuario->id, // El que rechazó
+            'contenido' => 'Llamada perdida',
+            'tipo' => 'llamada_perdida', // Tipo especial para llamadas perdidas
+            'leido' => false,
+            'entregado' => true,
+            'entregado_at' => now(),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'mensaje' => 'Llamada perdida registrada',
+            'mensaje_id' => $mensaje->id
+        ]);
+    }
+
+    /**
      * Manejar señalización WebRTC
      */
     public function señalizacion(Request $request, Chat $chat): \Illuminate\Http\JsonResponse
@@ -233,7 +272,7 @@ class ChatController extends Controller
         }
 
         $request->validate([
-            'tipo' => 'required|in:offer,answer,ice-candidate',
+            'tipo' => 'required|in:offer,answer,ice-candidate,call-rejected',
             'datos' => 'required|array',
             'call_id' => 'nullable|string',
             'usuario_id' => 'required|integer'

@@ -30,6 +30,15 @@
                     @if($mensajes->count() > 0)
                         <div class="chat-messages">
                             @foreach ($mensajes as $mensaje)
+                                @if($mensaje->tipo === 'llamada_perdida')
+                                    <div class="message-call-lost-container text-center my-2">
+                                        <div class="message-call-lost d-inline-block px-3 py-2 rounded">
+                                            <i class="fa fa-phone-slash text-danger me-2"></i>
+                                            <span class="text-muted fst-italic">{{ $mensaje->contenido }}</span>
+                                            <small class="text-muted d-block mt-1">{{ $mensaje->created_at->format('H:i') }}</small>
+                                        </div>
+                                    </div>
+                                @else
                                 <div class="message {{ $mensaje->registro_id_emisor == $usuario->id ? 'message-own' : 'message-other' }} mb-3">
                                     <div class="message-content">
                                         @if($mensaje->tipo === 'texto')
@@ -96,6 +105,7 @@
                                         </small>
                                     </div>
                                 </div>
+                                @endif
                             @endforeach
                         </div>
                     @else
@@ -215,6 +225,17 @@
 @keyframes pulse {
     0%, 100% { transform: scale(1); opacity: 1; }
     50% { transform: scale(1.1); opacity: 0.8; }
+}
+
+.message-call-lost-container {
+    width: 100%;
+}
+
+.message-call-lost {
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    color: #6c757d;
+    font-size: 0.9rem;
 }
 </style>
 

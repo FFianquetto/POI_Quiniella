@@ -173,8 +173,20 @@ class VideoCall {
         await this.answerIncomingCall(this.incomingCallOffer);
     }
     
-    rejectIncomingCall() {
+    async rejectIncomingCall() {
         this.stopCallSound();
+        
+        // Enviar mensaje de rechazo al otro usuario
+        if (this.incomingCallOffer) {
+            await this.sendSignalingMessage('call-rejected', {
+                reason: 'rejected',
+                timestamp: new Date().toISOString()
+            });
+            
+            // Registrar llamada perdida en el chat
+            await this.registrarLlamadaPerdida();
+        }
+        
         this.incomingCallOffer = null;
         
         // Cerrar modal de notificación
@@ -186,6 +198,41 @@ class VideoCall {
                 this.modalLlamadaEntrante.style.display = 'none';
                 this.modalLlamadaEntrante.classList.remove('show');
             }
+        }
+    }
+    
+    async registrarLlamadaPerdida() {
+        try {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+            if (!csrfToken) {
+                console.error('No se encontró el token CSRF');
+                return;
+            }
+            
+            const response = await fetch(`/chats/${this.chatId}/videollamada/perdida`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken
+                }
+            });
+            
+            if (!response.ok) {
+                console.error('Error al registrar llamada perdida:', response.statusText);
+                return;
+            }
+            
+            const result = await response.json();
+            if (result.success) {
+                console.log('Llamada perdida registrada en el chat');
+                // Recargar la página para mostrar el nuevo mensaje
+                // O mejor aún, agregar el mensaje dinámicamente al chat
+                setTimeout(() => {
+                    window.location.reload();
+                }, 500);
+            }
+        } catch (error) {
+            console.error('Error al registrar llamada perdida:', error);
         }
     }
     
@@ -238,8 +285,41 @@ class VideoCall {
             
             this.setupPeerConnectionHandlers();
             
-            // Procesar el offer recibido
-            await this.peerConnection.setRemoteDescription(new RTCSessionDescription(offerData));
+            // Procesar el offer recibido - asegurar formato correcto
+            let offerDataFormatted;
+            
+            // Si offerData ya tiene type y sdp, usarlo directamente
+            if (offerData.type && offerData.sdp) {
+                offerDataFormatted = {
+                    type: offerData.type,
+                    sdp: offerData.sdp
+                };
+            } else if (typeof offerData === 'string') {
+                // Si es un string, intentar parsearlo
+                try {
+                    offerDataFormatted = JSON.parse(offerData);
+                } catch (e) {
+                    throw new Error('El formato del offer es inválido');
+                }
+            } else {
+                // Intentar extraer type y sdp del objeto
+                offerDataFormatted = {
+                    type: offerData.type || 'offer',
+                    sdp: offerData.sdp || ''
+                };
+            }
+            
+            if (!offerDataFormatted.sdp || typeof offerDataFormatted.sdp !== 'string') {
+                console.error('Offer recibido:', offerData);
+                throw new Error('El SDP del offer está vacío o inválido');
+            }
+            
+            if (!offerDataFormatted.type || !['offer', 'answer', 'pranswer', 'rollback'].includes(offerDataFormatted.type)) {
+                throw new Error('El tipo del offer es inválido');
+            }
+            
+            console.log('Procesando offer con tipo:', offerDataFormatted.type, 'SDP length:', offerDataFormatted.sdp.length);
+            await this.peerConnection.setRemoteDescription(new RTCSessionDescription(offerDataFormatted));
             
             // Crear y enviar answer
             const answer = await this.peerConnection.createAnswer();
@@ -498,6 +578,24 @@ class VideoCall {
                 return;
             }
             
+            // Serializar correctamente el SDP
+            let datosSerializados = datos;
+            if (datos && typeof datos === 'object') {
+                // Si es un RTCSessionDescription, convertir a objeto plano
+                if (datos.type && datos.sdp) {
+                    datosSerializados = {
+                        type: datos.type,
+                        sdp: datos.sdp
+                    };
+                } else if (datos.toJSON) {
+                    // Si tiene método toJSON, usarlo
+                    datosSerializados = datos.toJSON();
+                } else {
+                    // Serializar normalmente
+                    datosSerializados = JSON.parse(JSON.stringify(datos));
+                }
+            }
+            
             const response = await fetch(`/chats/${this.chatId}/videollamada/señalizacion`, {
                 method: 'POST',
                 headers: {
@@ -506,7 +604,7 @@ class VideoCall {
                 },
                 body: JSON.stringify({
                     tipo: tipo,
-                    datos: datos,
+                    datos: datosSerializados,
                     call_id: this.callId,
                     usuario_id: this.usuarioId
                 })
@@ -528,11 +626,6 @@ class VideoCall {
     }
     
     async handleSignalingMessage(tipo, datos) {
-        if (!this.peerConnection) {
-            console.warn('No hay conexión peer para procesar señalización');
-            return;
-        }
-        
         try {
             switch (tipo) {
                 case 'offer':
@@ -549,22 +642,34 @@ class VideoCall {
                     }
                     
                     console.log('Llamada entrante detectada');
-                    // Mostrar notificación de llamada entrante
+                    // Mostrar notificación de llamada entrante (no necesita peerConnection todavía)
                     this.showIncomingCallNotification(datos);
                     break;
                     
                 case 'answer':
-                    // Solo procesar answer si somos el iniciador
-                    if (!this.isInitiator) {
-                        console.log('Ignorando answer porque no somos el iniciador');
+                    // Solo procesar answer si somos el iniciador y tenemos peerConnection
+                    if (!this.isInitiator || !this.peerConnection) {
+                        console.log('Ignorando answer porque no somos el iniciador o no hay peerConnection');
                         return;
                     }
                     console.log('Recibiendo answer...');
-                    await this.peerConnection.setRemoteDescription(new RTCSessionDescription(datos));
+                    // Asegurar que datos tenga el formato correcto
+                    const answerData = {
+                        type: datos.type || 'answer',
+                        sdp: datos.sdp || datos.sdp
+                    };
+                    if (!answerData.sdp) {
+                        throw new Error('El SDP del answer está vacío o inválido');
+                    }
+                    await this.peerConnection.setRemoteDescription(new RTCSessionDescription(answerData));
                     break;
                     
                 case 'ice-candidate':
-                    if (datos && datos.candidate) {
+                    if (!this.peerConnection) {
+                        console.warn('No hay peerConnection para agregar ICE candidate');
+                        return;
+                    }
+                    if (datos && (datos.candidate || datos.sdpMLineIndex !== undefined)) {
                         try {
                             await this.peerConnection.addIceCandidate(new RTCIceCandidate(datos));
                             console.log('ICE candidate agregado exitosamente');
@@ -577,10 +682,47 @@ class VideoCall {
                         }
                     }
                     break;
+                    
+                case 'call-rejected':
+                    // Llamada rechazada por el otro usuario
+                    console.log('Llamada rechazada por el otro usuario');
+                    this.showCallRejectedNotification();
+                    this.endCall();
+                    break;
             }
         } catch (error) {
             console.error('Error al procesar mensaje de señalización:', error);
+            // Si es error de SDP, mostrar mensaje más claro
+            if (error.message && error.message.includes('SessionDescription')) {
+                console.error('Error de SDP:', error);
+                if (this.estadoVideollamada) {
+                    this.estadoVideollamada.innerHTML = `
+                        <i class="fa fa-exclamation-triangle fa-3x mb-3 text-danger"></i>
+                        <h5>Error de conexión</h5>
+                        <p>No se pudo establecer la conexión. Por favor, intenta de nuevo.</p>
+                    `;
+                    this.estadoVideollamada.style.display = 'block';
+                }
+                setTimeout(() => this.endCall(), 3000);
+            }
         }
+    }
+    
+    showCallRejectedNotification() {
+        // Mostrar notificación de llamada perdida/rechazada
+        if (this.estadoVideollamada) {
+            this.estadoVideollamada.innerHTML = `
+                <i class="fa fa-phone-slash fa-3x mb-3 text-danger"></i>
+                <h5>Llamada perdida</h5>
+                <p>El usuario no pudo atender la llamada</p>
+            `;
+            this.estadoVideollamada.style.display = 'block';
+        }
+        
+        // Cerrar automáticamente después de 3 segundos
+        setTimeout(() => {
+            this.endCall();
+        }, 3000);
     }
     
     startSignalingPolling() {
