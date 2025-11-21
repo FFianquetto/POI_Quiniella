@@ -107,7 +107,7 @@ class ChatController extends Controller
         $request->validate([
             'contenido' => 'required_without:archivo|string|max:1000',
             'tipo' => 'in:texto,imagen,video,audio,archivo',
-            'archivo' => 'nullable|file|max:10240', // 10MB máximo
+            'archivo' => 'nullable|file|max:51200', // 50MB máximo (aumentado para videos)
         ]);
 
         $usuarioId = session('registro_id');

@@ -310,8 +310,15 @@ class VideoCall {
             // Crear conexión peer
             this.peerConnection = new RTCPeerConnection(this.configuration);
             
+            // Agregar tracks de forma más controlada
+            // Verificar que los tracks estén activos antes de agregarlos
             this.localStream.getTracks().forEach(track => {
-                this.peerConnection.addTrack(track, this.localStream);
+                if (track.readyState === 'live' && track.enabled) {
+                    this.peerConnection.addTrack(track, this.localStream);
+                    console.log(`Track agregado: ${track.kind} - ${track.id}`);
+                } else {
+                    console.warn(`Track ${track.kind} no está listo, saltando:`, track.readyState);
+                }
             });
             
             this.setupPeerConnectionHandlers();
@@ -392,8 +399,22 @@ class VideoCall {
             
             // Crear y enviar answer
             const answer = await this.peerConnection.createAnswer();
+            
+            // Limpiar el SDP del answer ANTES de establecerlo como local description
+            // Esto evita que se incluyan códecs problemáticos en el SDP
+            if (answer.sdp) {
+                answer.sdp = this.cleanSDP(answer.sdp);
+            }
+            
             await this.peerConnection.setLocalDescription(answer);
-            await this.sendSignalingMessage('answer', answer);
+            
+            // Limpiar nuevamente antes de enviar (por si acaso)
+            const cleanedAnswer = {
+                type: answer.type,
+                sdp: this.cleanSDP(answer.sdp)
+            };
+            
+            await this.sendSignalingMessage('answer', cleanedAnswer);
             
             this.startSignalingPolling();
             
@@ -509,8 +530,15 @@ class VideoCall {
             
             this.peerConnection = new RTCPeerConnection(this.configuration);
             
+            // Agregar tracks de forma más controlada
+            // Verificar que los tracks estén activos antes de agregarlos
             this.localStream.getTracks().forEach(track => {
-                this.peerConnection.addTrack(track, this.localStream);
+                if (track.readyState === 'live' && track.enabled) {
+                    this.peerConnection.addTrack(track, this.localStream);
+                    console.log(`Track agregado: ${track.kind} - ${track.id}`);
+                } else {
+                    console.warn(`Track ${track.kind} no está listo, saltando:`, track.readyState);
+                }
             });
             
             this.setupPeerConnectionHandlers();
@@ -519,9 +547,22 @@ class VideoCall {
             this.callId = 'call_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
             
             const offer = await this.peerConnection.createOffer();
+            
+            // Limpiar el SDP del offer ANTES de establecerlo como local description
+            // Esto evita que se incluyan códecs problemáticos en el SDP
+            if (offer.sdp) {
+                offer.sdp = this.cleanSDP(offer.sdp);
+            }
+            
             await this.peerConnection.setLocalDescription(offer);
             
-            await this.sendSignalingMessage('offer', offer);
+            // Limpiar nuevamente antes de enviar (por si acaso)
+            const cleanedOffer = {
+                type: offer.type,
+                sdp: this.cleanSDP(offer.sdp)
+            };
+            
+            await this.sendSignalingMessage('offer', cleanedOffer);
             
             this.startSignalingPolling();
             
@@ -978,16 +1019,21 @@ class VideoCall {
                         const payloadType = fmtpMatch[1];
                         let parameters = fmtpMatch[2].trim();
                         
-                        // Si tiene parámetros apt= (asociado con rtx), validar y corregir el formato
-                        // apt= indica que este payload type es para retransmisión
+                        // Si tiene parámetros apt= (asociado con rtx), ELIMINAR si solo tiene apt=
+                        // apt= es un parámetro de retransmisión que algunos navegadores rechazan
                         if (parameters.includes('apt=')) {
-                            // Formato esperado: apt=<payload_type>
-                            // Algunos navegadores son estrictos con el formato, asegurar que sea exacto
+                            // Si solo tiene apt= (sin otros parámetros), eliminar esta línea
+                            // porque causa errores de parsing en Chrome
+                            if (parameters.match(/^apt=\d+$/i) || parameters.trim().match(/^apt=\d+\s*$/i)) {
+                                console.warn('Línea a=fmtp con solo apt= eliminada (causa problemas de parsing):', line);
+                                continue;
+                            }
+                            
+                            // Si tiene apt= junto con otros parámetros, intentar preservarlo
                             const aptMatch = parameters.match(/apt\s*=\s*(\d+)/);
                             if (aptMatch) {
                                 // Formato válido, reconstruir con formato estándar (apt= sin espacios)
                                 const aptValue = aptMatch[1];
-                                // Reemplazar cualquier variación de apt= con el formato estándar
                                 parameters = parameters.replace(/apt\s*=\s*\d+/, `apt=${aptValue}`);
                                 cleanedFmtp = `a=fmtp:${payloadType} ${parameters}`;
                                 cleanedLines.push(cleanedFmtp);
