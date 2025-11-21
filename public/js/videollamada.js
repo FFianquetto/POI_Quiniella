@@ -968,9 +968,69 @@ class VideoCall {
                         continue;
                     }
                     
-                    // Limpiar espacios extra pero preservar el contenido
+                    // Limpiar espacios extra
                     let cleanedFmtp = line.replace(/\s+/g, ' ').trim();
-                    cleanedLines.push(cleanedFmtp);
+                    
+                    // Validar y corregir formato de a=fmtp
+                    // Formato esperado: a=fmtp:<payload_type> <parameters>
+                    const fmtpMatch = cleanedFmtp.match(/^a=fmtp:(\d+)\s+(.+)$/);
+                    if (fmtpMatch) {
+                        const payloadType = fmtpMatch[1];
+                        let parameters = fmtpMatch[2].trim();
+                        
+                        // Si tiene parámetros apt= (asociado con rtx), validar y corregir el formato
+                        // apt= indica que este payload type es para retransmisión
+                        if (parameters.includes('apt=')) {
+                            // Formato esperado: apt=<payload_type>
+                            // Algunos navegadores son estrictos con el formato, asegurar que sea exacto
+                            const aptMatch = parameters.match(/apt\s*=\s*(\d+)/);
+                            if (aptMatch) {
+                                // Formato válido, reconstruir con formato estándar (apt= sin espacios)
+                                const aptValue = aptMatch[1];
+                                // Reemplazar cualquier variación de apt= con el formato estándar
+                                parameters = parameters.replace(/apt\s*=\s*\d+/, `apt=${aptValue}`);
+                                cleanedFmtp = `a=fmtp:${payloadType} ${parameters}`;
+                                cleanedLines.push(cleanedFmtp);
+                            } else {
+                                // Formato inválido de apt=, eliminar esta línea
+                                console.warn('Línea a=fmtp con formato apt= inválido eliminada:', line);
+                                continue;
+                            }
+                        } else {
+                            // No tiene apt=, solo limpiar y preservar
+                            cleanedFmtp = `a=fmtp:${payloadType} ${parameters}`;
+                            cleanedLines.push(cleanedFmtp);
+                        }
+                    } else {
+                        // Si no coincide el formato exacto, intentar extraer y reconstruir
+                        const basicMatch = cleanedFmtp.match(/^a=fmtp:(\d+)(?:\s+(.+))?$/);
+                        if (basicMatch) {
+                            const payloadType = basicMatch[1];
+                            const parameters = basicMatch[2] || '';
+                            
+                            if (parameters.includes('apt=')) {
+                                // Intentar corregir formato apt=
+                                const aptMatch = parameters.match(/apt\s*=\s*(\d+)/);
+                                if (aptMatch) {
+                                    const aptValue = aptMatch[1];
+                                    const correctedParams = parameters.replace(/apt\s*=\s*\d+/, `apt=${aptValue}`).trim();
+                                    cleanedFmtp = `a=fmtp:${payloadType} ${correctedParams}`;
+                                    console.warn('Línea a=fmtp corregida:', line, '->', cleanedFmtp);
+                                    cleanedLines.push(cleanedFmtp);
+                                } else {
+                                    console.warn('Línea a=fmtp con formato apt= inválido eliminada:', line);
+                                    continue;
+                                }
+                            } else {
+                                // Sin apt=, reconstruir con formato estándar
+                                cleanedFmtp = `a=fmtp:${payloadType} ${parameters.trim()}`;
+                                cleanedLines.push(cleanedFmtp);
+                            }
+                        } else {
+                            console.error('Línea a=fmtp con formato completamente inválido, eliminando:', line);
+                            // No agregar líneas con formato completamente inválido
+                        }
+                    }
                     continue;
                 }
                 
