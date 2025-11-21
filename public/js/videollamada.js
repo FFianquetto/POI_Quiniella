@@ -894,6 +894,86 @@ class VideoCall {
                     continue; // Saltar completamente
                 }
                 
+                // Limpiar y validar líneas a=rtpmap (ESENCIALES - solo eliminar códecs que causan errores de parsing)
+                if (line.startsWith('a=rtpmap:')) {
+                    // SOLO eliminar códecs que realmente causan errores de parsing en navegadores
+                    // ulpfec es el único que sabemos que causa problemas de parsing
+                    // red, rtx, flexfec son opcionales pero compatibles, así que los preservamos
+                    const parsingErrorCodecs = ['ulpfec'];
+                    
+                    // Verificar si el códec causa errores de parsing
+                    let causesParsingError = false;
+                    for (const codec of parsingErrorCodecs) {
+                        if (line.toLowerCase().includes(codec)) {
+                            console.warn(`Línea a=rtpmap con códec que causa error de parsing ${codec} eliminada:`, line);
+                            causesParsingError = true;
+                            break;
+                        }
+                    }
+                    
+                    if (causesParsingError) {
+                        continue; // Saltar esta línea
+                    }
+                    
+                    // Limpiar espacios extra y caracteres problemáticos
+                    let cleanedRtpmap = line.replace(/\s+/g, ' ').trim();
+                    
+                    // Validar y corregir formato básico
+                    // Formato esperado: a=rtpmap:<payload_type> <encoding_name>/<clock_rate>[/<encoding_parameters>]
+                    const rtpmapMatch = cleanedRtpmap.match(/^a=rtpmap:(\d+)\s+([^\s/]+)\/(\d+)(?:\/(.+))?$/);
+                    if (rtpmapMatch) {
+                        // Formato válido, reconstruir la línea correctamente
+                        const payloadType = rtpmapMatch[1];
+                        const encodingName = rtpmapMatch[2];
+                        const clockRate = rtpmapMatch[3];
+                        const encodingParams = rtpmapMatch[4];
+                        
+                        // Asegurar que los códecs esenciales se preserven
+                        const essentialCodecs = ['opus', 'vp8', 'vp9', 'h264', 'pcmu', 'pcma', 'g722'];
+                        const isEssential = essentialCodecs.some(codec => encodingName.toLowerCase().includes(codec));
+                        
+                        if (encodingParams) {
+                            cleanedRtpmap = `a=rtpmap:${payloadType} ${encodingName}/${clockRate}/${encodingParams}`;
+                        } else {
+                            cleanedRtpmap = `a=rtpmap:${payloadType} ${encodingName}/${clockRate}`;
+                        }
+                        
+                        if (isEssential) {
+                            console.log(`Preservando códec esencial: ${encodingName}`);
+                        }
+                        
+                        cleanedLines.push(cleanedRtpmap);
+                    } else {
+                        // Si no coincide el formato exacto, intentar limpiar y validar
+                        // Puede ser un formato válido pero con espacios extra
+                        cleanedRtpmap = cleanedRtpmap.replace(/\s{2,}/g, ' ').trim();
+                        
+                        // Verificar que tenga al menos el formato básico a=rtpmap:X Y/Z
+                        if (cleanedRtpmap.match(/^a=rtpmap:\d+\s+.+\/\d+/)) {
+                            console.warn('Línea a=rtpmap con formato inusual pero válido, limpiando:', line);
+                            cleanedLines.push(cleanedRtpmap);
+                        } else {
+                            console.error('Línea a=rtpmap con formato inválido, eliminando:', line);
+                            // No agregar líneas con formato completamente inválido
+                        }
+                    }
+                    continue;
+                }
+                
+                // Limpiar líneas a=fmtp (preservar todas excepto las relacionadas con códecs que causan errores)
+                if (line.startsWith('a=fmtp:')) {
+                    // Solo eliminar fmtp relacionado con ulpfec (que causa errores de parsing)
+                    if (line.toLowerCase().includes('ulpfec')) {
+                        console.warn('Línea a=fmtp relacionada con ulpfec eliminada:', line);
+                        continue;
+                    }
+                    
+                    // Limpiar espacios extra pero preservar el contenido
+                    let cleanedFmtp = line.replace(/\s+/g, ' ').trim();
+                    cleanedLines.push(cleanedFmtp);
+                    continue;
+                }
+                
                 // Para otras líneas SDP, agregarlas tal cual
                 cleanedLines.push(line);
             } else {
