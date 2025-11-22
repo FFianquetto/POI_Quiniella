@@ -804,27 +804,61 @@ class VideoCall {
             }
             
             // Detectar y corregir líneas a=ssrc con múltiples msid en la misma línea
-            // Formato esperado: a=ssrc:SSRC_ID msid:MSID1 MSID2
-            // Si hay dos msid en la misma línea, separarlos correctamente
+            // Problema común: a=ssrc:ID msid:UUID1 UUID2 (dos UUIDs después de msid:)
             if (linea.startsWith('a=ssrc:') && linea.includes('msid:')) {
-                // Contar cuántos msid: hay en la línea
-                const msidMatches = linea.match(/msid:/g);
-                if (msidMatches && msidMatches.length > 1) {
-                    // Hay múltiples msid, necesitamos separarlos
-                    // Formato: a=ssrc:ID msid:MSID1 MSID2
-                    // Debe ser: a=ssrc:ID msid:MSID1
-                    //          a=ssrc:ID msid:MSID2
-                    const ssrcMatch = linea.match(/^a=ssrc:(\d+)/);
-                    if (ssrcMatch) {
-                        const ssrcId = ssrcMatch[1];
-                        const msidParts = linea.split('msid:');
-                        // La primera parte es "a=ssrc:ID ", el resto son los msid
+                const ssrcMatch = linea.match(/^a=ssrc:(\d+)/);
+                if (ssrcMatch) {
+                    const ssrcId = ssrcMatch[1];
+                    let lineaCorregida = linea;
+                    let necesitaCorreccion = false;
+                    
+                    // Buscar la posición de msid:
+                    const msidIndex = linea.indexOf('msid:');
+                    if (msidIndex > 0) {
+                        const parteAntes = linea.substring(0, msidIndex + 5); // "a=ssrc:ID msid:"
+                        const parteDespues = linea.substring(msidIndex + 5).trim(); // Todo después de "msid:"
+                        
+                        // Dividir por espacios para ver si hay múltiples valores
+                        const valores = parteDespues.split(/\s+/);
+                        
+                        // Detectar si hay múltiples UUIDs (formato UUID: 8-4-4-4-12 caracteres hex)
+                        const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+                        const valoresUUID = valores.filter(v => uuidPattern.test(v));
+                        
+                        if (valoresUUID.length > 1) {
+                            // Hay múltiples UUIDs, tomar solo el primero
+                            console.warn('SDP: Detectado múltiples msid en la misma línea, usando solo el primero:', linea);
+                            lineaCorregida = `${parteAntes}${valoresUUID[0]}`;
+                            necesitaCorreccion = true;
+                        } else if (valores.length > 1 && !valores[1].match(/^[a-z]=/)) {
+                            // Hay múltiples valores pero no son UUIDs válidos, puede ser corrupción
+                            // Tomar solo el primer valor que parezca un UUID o identificador válido
+                            const primerValor = valores[0];
+                            if (primerValor && primerValor.length > 0) {
+                                console.warn('SDP: Detectado formato inválido en línea msid, limpiando:', linea);
+                                lineaCorregida = `${parteAntes}${primerValor}`;
+                                necesitaCorreccion = true;
+                            }
+                        }
+                    }
+                    
+                    // También verificar si hay múltiples ocurrencias de "msid:" en la línea
+                    const msidMatches = lineaCorregida.match(/msid:/g);
+                    if (msidMatches && msidMatches.length > 1) {
+                        // Hay múltiples msid:, separarlos en líneas diferentes
+                        const msidParts = lineaCorregida.split('msid:');
                         for (let j = 1; j < msidParts.length; j++) {
-                            const msidValue = msidParts[j].trim().split(/\s+/)[0]; // Tomar solo el primer valor
+                            const msidValue = msidParts[j].trim().split(/\s+/)[0];
                             if (msidValue) {
                                 lineasLimpias.push(`a=ssrc:${ssrcId} msid:${msidValue}`);
                             }
                         }
+                        continue;
+                    }
+                    
+                    // Si se corrigió la línea, usar la versión corregida
+                    if (necesitaCorreccion) {
+                        lineasLimpias.push(lineaCorregida);
                         continue;
                     }
                 }
@@ -967,34 +1001,56 @@ class VideoCall {
                 
                 // Intentar una limpieza más agresiva
                 if (cleanedOffer.sdp) {
-                    // Eliminar líneas problemáticas específicas relacionadas con msid duplicados
-                    let sdpLines = cleanedOffer.sdp.split('\r\n');
-                    sdpLines = sdpLines.filter(line => {
-                        // Eliminar líneas a=ssrc que tengan formato inválido
-                        if (line.startsWith('a=ssrc:')) {
-                            // Contar espacios después de msid:
-                            const msidIndex = line.indexOf('msid:');
-                            if (msidIndex > 0) {
-                                const afterMsid = line.substring(msidIndex + 5);
-                                // Si hay múltiples valores separados por espacios sin otro atributo, es inválido
-                                const parts = afterMsid.trim().split(/\s+/);
-                                if (parts.length > 2) {
-                                    // Probablemente hay múltiples msid en la misma línea
-                                    return false; // Eliminar esta línea
+                    // Aplicar normalización nuevamente con parámetros más estrictos
+                    let sdpLines = cleanedOffer.sdp.split(/\r?\n/);
+                    const lineasCorregidas = [];
+                    
+                    for (const line of sdpLines) {
+                        const linea = line.trim();
+                        if (!linea) continue;
+                        
+                        // Corregir líneas a=ssrc problemáticas
+                        if (linea.startsWith('a=ssrc:') && linea.includes('msid:')) {
+                            const ssrcMatch = linea.match(/^a=ssrc:(\d+)/);
+                            if (ssrcMatch) {
+                                const ssrcId = ssrcMatch[1];
+                                const msidIndex = linea.indexOf('msid:');
+                                if (msidIndex > 0) {
+                                    const parteAntes = linea.substring(0, msidIndex + 5);
+                                    const parteDespues = linea.substring(msidIndex + 5).trim();
+                                    const valores = parteDespues.split(/\s+/);
+                                    
+                                    // Si hay más de un valor y el segundo parece un UUID, tomar solo el primero
+                                    if (valores.length > 1) {
+                                        const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+                                        const primerValor = valores[0];
+                                        const segundoValor = valores[1];
+                                        
+                                        // Si el segundo valor es un UUID, es un msid duplicado inválido
+                                        if (uuidPattern.test(segundoValor)) {
+                                            console.warn('SDP: Limpieza agresiva - removiendo msid duplicado:', linea);
+                                            lineasCorregidas.push(`${parteAntes}${primerValor}`);
+                                            continue;
+                                        }
+                                    }
                                 }
                             }
                         }
-                        return true;
-                    });
+                        
+                        // Mantener la línea si no es problemática
+                        lineasCorregidas.push(linea);
+                    }
                     
                     const moreCleanedOffer = {
                         type: cleanedOffer.type,
-                        sdp: sdpLines.join('\r\n') + '\r\n'
+                        sdp: lineasCorregidas.join('\r\n') + '\r\n'
                     };
                     
+                    console.log('Intentando con SDP más limpiado...');
                     try {
                         await this.peerConnection.setRemoteDescription(new RTCSessionDescription(moreCleanedOffer));
                     } catch (finalError) {
+                        console.error('Error incluso después de limpieza agresiva:', finalError);
                         throw new Error(`Error al procesar SDP: ${finalError.message}. El SDP puede estar corrupto.`);
                     }
                 } else {
