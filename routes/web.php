@@ -11,77 +11,35 @@ use App\Http\Controllers\ComentarioController;
 use App\Http\Controllers\TorneoController;
 use App\Http\Controllers\ChatGrupoController;
 
-Route::get('/', function () {
-    return redirect()->route('auth.login');
-});
-
-// Rutas de autenticación
-Route::get('/login', [AuthController::class, 'showLogin'])->name('auth.login');
-Route::post('/login', [AuthController::class, 'login'])->name('auth.login.post');
-Route::post('/logout', [AuthController::class, 'logout'])->name('auth.logout');
-Route::get('/dashboard', [AuthController::class, 'dashboard'])->name('auth.dashboard');
-
-// Rutas de recursos
-Route::resource('registros', RegistroController::class);
-Route::resource('publicaciones', PublicacioneController::class);
-Route::resource('comentarios', ComentarioController::class);
-
-// Rutas adicionales para comentarios
-Route::get('/comentarios/conversacion/{usuario1}/{usuario2}', [ComentarioController::class, 'conversacion'])->name('comentarios.conversacion');
-
-// Rutas para quinielas (formato casa de apuestas)
-Route::get('/quinielas', [QuinielaController::class, 'index'])->name('quinielas.index');
-Route::get('/quinielas/{quiniela}', [QuinielaController::class, 'show'])->name('quinielas.show');
-Route::post('/quinielas/{quiniela}/participar', [QuinielaController::class, 'participar'])->name('quinielas.participar');
-Route::post('/quinielas/{quiniela}/prediccion', [QuinielaController::class, 'hacerPrediccion'])->name('quinielas.prediccion');
-Route::post('/quinielas/mundial/apostar', [QuinielaController::class, 'apostarMundial'])->name('quinielas.mundial.apostar');
-Route::get('/quinielas/torneo/resultados', [QuinielaController::class, 'resultadosTorneo'])->name('quinielas.torneo.resultados');
-
-// Rutas para administración
-Route::prefix('admin')->group(function () {
-    Route::get('/', [AdminController::class, 'dashboard'])->name('admin.dashboard');
-    Route::get('/quinielas', [AdminController::class, 'quinielas'])->name('admin.quinielas');
-    Route::post('/quinielas/{quiniela}/resultado', [AdminController::class, 'definirResultado'])->name('admin.quinielas.resultado');
-    Route::post('/quinielas/crear', [AdminController::class, 'crearQuiniela'])->name('admin.quinielas.crear');
-    
-});
-
-// Rutas para el sistema de chats
-Route::get('/chats', [ChatController::class, 'index'])->name('chat.index');
-Route::get('/chats/buscar', [ChatController::class, 'buscarUsuarios'])->name('chat.buscar');
-Route::get('/chats/{chat}', [ChatController::class, 'show'])->name('chat.show');
-Route::post('/chats/crear', [ChatController::class, 'crearChat'])->name('chat.crear');
-Route::post('/chats/{chat}/mensaje', [ChatController::class, 'enviarMensaje'])->name('chat.mensaje');
-Route::get('/chats/pendientes', [ChatController::class, 'recibirPendientes'])->name('chat.pendientes');
-
-// Rutas para chats grupales
-Route::prefix('chat/grupo')->name('chat.grupo.')->group(function () {
-    Route::get('/crear', [ChatGrupoController::class, 'create'])->name('create');
-    Route::post('/crear', [ChatGrupoController::class, 'store'])->name('store');
-    Route::get('/{id}', [ChatGrupoController::class, 'show'])->name('show');
-    Route::get('/{id}/editar', [ChatGrupoController::class, 'edit'])->name('edit');
-    Route::put('/{id}', [ChatGrupoController::class, 'update'])->name('update');
-    Route::post('/{id}/agregar-miembros', [ChatGrupoController::class, 'agregarMiembros'])->name('agregar-miembros');
-    Route::post('/{id}/remover-miembros', [ChatGrupoController::class, 'removerMiembros'])->name('remover-miembros');
-    Route::post('/{id}/promover-admin', [ChatGrupoController::class, 'promoverAdministrador'])->name('promover-admin');
-    Route::post('/{id}/degradar-admin', [ChatGrupoController::class, 'degradarAdministrador'])->name('degradar-admin');
-    Route::post('/{id}/tareas', [ChatGrupoController::class, 'crearTarea'])->name('tareas.crear');
-    Route::post('/{chat}/tareas/{tarea}/completar', [ChatGrupoController::class, 'completarTarea'])->name('tareas.completar');
-    Route::delete('/{id}/abandonar', [ChatGrupoController::class, 'abandonar'])->name('abandonar');
-});
-
 // Ruta para servir archivos de chat directamente desde storage (fallback si el enlace simbólico no funciona)
+// IMPORTANTE: Esta ruta debe estar ANTES de otras rutas para que tenga prioridad
+// Esta ruta es crítica para Railway donde el enlace simbólico puede no funcionar
 Route::get('/storage/chat_archivos/{filename}', function ($filename) {
     $usuarioId = session('registro_id');
     if (!$usuarioId) {
         abort(403, 'No autorizado');
     }
     
+    // Limpiar el nombre del archivo para seguridad
+    $filename = basename($filename);
+    
     $path = storage_path('app/public/chat_archivos/' . $filename);
     
     if (!file_exists($path)) {
+        \Log::warning('Archivo no encontrado en ruta de servicio', [
+            'filename' => $filename,
+            'path' => $path,
+            'usuario_id' => $usuarioId
+        ]);
         abort(404, 'Archivo no encontrado');
     }
+    
+    \Log::info('Sirviendo archivo desde ruta de fallback', [
+        'filename' => $filename,
+        'path' => $path,
+        'exists' => file_exists($path),
+        'size' => file_exists($path) ? filesize($path) : 0
+    ]);
     
     // Detectar el tipo MIME basado en la extensión y el contenido del archivo
     $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
@@ -147,11 +105,102 @@ Route::get('/storage/chat_archivos/{filename}', function ($filename) {
         $mimeType = $detectedMimeType ?: ($mimeTypes[$extension] ?? 'application/octet-stream');
     }
     
-    return response()->file($path, [
+    // Headers importantes para streaming de audio/video
+    $headers = [
         'Content-Type' => $mimeType,
         'Accept-Ranges' => 'bytes',
-    ]);
+        'Cache-Control' => 'public, max-age=3600',
+    ];
+    
+    // Para archivos grandes (audio/video), soportar range requests para streaming
+    if (in_array($extension, ['mp3', 'mp4', 'm4a', 'webm', 'ogg', 'wav', 'avi', 'mov'])) {
+        $fileSize = filesize($path);
+        $headers['Content-Length'] = $fileSize;
+        
+        // Verificar si hay un Range request (para streaming)
+        if (isset($_SERVER['HTTP_RANGE'])) {
+            $range = $_SERVER['HTTP_RANGE'];
+            $range = str_replace('bytes=', '', $range);
+            list($start, $end) = explode('-', $range);
+            
+            $start = (int) $start;
+            $end = $end ? (int) $end : $fileSize - 1;
+            $length = $end - $start + 1;
+            
+            $headers['Content-Range'] = "bytes $start-$end/$fileSize";
+            $headers['Content-Length'] = $length;
+            $headers['HTTP/1.1 206 Partial Content'] = true;
+            
+            return response()->stream(function() use ($path, $start, $length) {
+                $file = fopen($path, 'rb');
+                fseek($file, $start);
+                echo fread($file, $length);
+                fclose($file);
+            }, 206, $headers);
+        }
+    }
+    
+    return response()->file($path, $headers);
 })->name('chat.archivo.serve');
+
+Route::get('/', function () {
+    return redirect()->route('auth.login');
+});
+
+// Rutas de autenticación
+Route::get('/login', [AuthController::class, 'showLogin'])->name('auth.login');
+Route::post('/login', [AuthController::class, 'login'])->name('auth.login.post');
+Route::post('/logout', [AuthController::class, 'logout'])->name('auth.logout');
+Route::get('/dashboard', [AuthController::class, 'dashboard'])->name('auth.dashboard');
+
+// Rutas de recursos
+Route::resource('registros', RegistroController::class);
+Route::resource('publicaciones', PublicacioneController::class);
+Route::resource('comentarios', ComentarioController::class);
+
+// Rutas adicionales para comentarios
+Route::get('/comentarios/conversacion/{usuario1}/{usuario2}', [ComentarioController::class, 'conversacion'])->name('comentarios.conversacion');
+
+// Rutas para quinielas (formato casa de apuestas)
+Route::get('/quinielas', [QuinielaController::class, 'index'])->name('quinielas.index');
+Route::get('/quinielas/{quiniela}', [QuinielaController::class, 'show'])->name('quinielas.show');
+Route::post('/quinielas/{quiniela}/participar', [QuinielaController::class, 'participar'])->name('quinielas.participar');
+Route::post('/quinielas/{quiniela}/prediccion', [QuinielaController::class, 'hacerPrediccion'])->name('quinielas.prediccion');
+Route::post('/quinielas/mundial/apostar', [QuinielaController::class, 'apostarMundial'])->name('quinielas.mundial.apostar');
+Route::get('/quinielas/torneo/resultados', [QuinielaController::class, 'resultadosTorneo'])->name('quinielas.torneo.resultados');
+
+// Rutas para administración
+Route::prefix('admin')->group(function () {
+    Route::get('/', [AdminController::class, 'dashboard'])->name('admin.dashboard');
+    Route::get('/quinielas', [AdminController::class, 'quinielas'])->name('admin.quinielas');
+    Route::post('/quinielas/{quiniela}/resultado', [AdminController::class, 'definirResultado'])->name('admin.quinielas.resultado');
+    Route::post('/quinielas/crear', [AdminController::class, 'crearQuiniela'])->name('admin.quinielas.crear');
+    
+});
+
+// Rutas para el sistema de chats
+Route::get('/chats', [ChatController::class, 'index'])->name('chat.index');
+Route::get('/chats/buscar', [ChatController::class, 'buscarUsuarios'])->name('chat.buscar');
+Route::get('/chats/{chat}', [ChatController::class, 'show'])->name('chat.show');
+Route::post('/chats/crear', [ChatController::class, 'crearChat'])->name('chat.crear');
+Route::post('/chats/{chat}/mensaje', [ChatController::class, 'enviarMensaje'])->name('chat.mensaje');
+Route::get('/chats/pendientes', [ChatController::class, 'recibirPendientes'])->name('chat.pendientes');
+
+// Rutas para chats grupales
+Route::prefix('chat/grupo')->name('chat.grupo.')->group(function () {
+    Route::get('/crear', [ChatGrupoController::class, 'create'])->name('create');
+    Route::post('/crear', [ChatGrupoController::class, 'store'])->name('store');
+    Route::get('/{id}', [ChatGrupoController::class, 'show'])->name('show');
+    Route::get('/{id}/editar', [ChatGrupoController::class, 'edit'])->name('edit');
+    Route::put('/{id}', [ChatGrupoController::class, 'update'])->name('update');
+    Route::post('/{id}/agregar-miembros', [ChatGrupoController::class, 'agregarMiembros'])->name('agregar-miembros');
+    Route::post('/{id}/remover-miembros', [ChatGrupoController::class, 'removerMiembros'])->name('remover-miembros');
+    Route::post('/{id}/promover-admin', [ChatGrupoController::class, 'promoverAdministrador'])->name('promover-admin');
+    Route::post('/{id}/degradar-admin', [ChatGrupoController::class, 'degradarAdministrador'])->name('degradar-admin');
+    Route::post('/{id}/tareas', [ChatGrupoController::class, 'crearTarea'])->name('tareas.crear');
+    Route::post('/{chat}/tareas/{tarea}/completar', [ChatGrupoController::class, 'completarTarea'])->name('tareas.completar');
+    Route::delete('/{id}/abandonar', [ChatGrupoController::class, 'abandonar'])->name('abandonar');
+});
 
 // Rutas para videollamadas
 Route::post('/chats/{chat}/videollamada/iniciar', [ChatController::class, 'iniciarVideollamada'])->name('chat.videollamada.iniciar');
