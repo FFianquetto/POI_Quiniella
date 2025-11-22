@@ -70,6 +70,22 @@ Route::prefix('chat/grupo')->name('chat.grupo.')->group(function () {
     Route::delete('/{id}/abandonar', [ChatGrupoController::class, 'abandonar'])->name('abandonar');
 });
 
+// Ruta para servir archivos de chat directamente desde storage (fallback si el enlace simbólico no funciona)
+Route::get('/storage/chat_archivos/{filename}', function ($filename) {
+    $usuarioId = session('registro_id');
+    if (!$usuarioId) {
+        abort(403, 'No autorizado');
+    }
+    
+    $path = storage_path('app/public/chat_archivos/' . $filename);
+    
+    if (!file_exists($path)) {
+        abort(404, 'Archivo no encontrado');
+    }
+    
+    return response()->file($path);
+})->name('chat.archivo.serve');
+
 // Rutas para videollamadas
 Route::post('/chats/{chat}/videollamada/iniciar', [ChatController::class, 'iniciarVideollamada'])->name('chat.videollamada.iniciar');
 Route::post('/chats/{chat}/videollamada/señalizacion', [ChatController::class, 'señalizacion'])->name('chat.videollamada.señalizacion');

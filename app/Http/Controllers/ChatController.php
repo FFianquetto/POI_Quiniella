@@ -169,9 +169,15 @@ class ChatController extends Controller
             }
             
             // Generar URL pública para el archivo
-            // La ruta relativa ya es 'chat_archivos/nombre_archivo'
-            // asset('storage/...') genera la URL correcta: /storage/chat_archivos/nombre_archivo
-            $mensajeData['archivo_url'] = asset('storage/' . $rutaRelativa);
+            // Asegurar que la URL sea absoluta para que funcione correctamente en producción
+            $url = Storage::url($rutaRelativa);
+            // Si la URL no es absoluta, convertirla a absoluta usando APP_URL
+            if (!filter_var($url, FILTER_VALIDATE_URL)) {
+                $baseUrl = rtrim(config('app.url', env('APP_URL', '')), '/');
+                $mensajeData['archivo_url'] = $baseUrl . '/' . ltrim($url, '/');
+            } else {
+                $mensajeData['archivo_url'] = $url;
+            }
             $mensajeData['archivo_nombre'] = $archivo->getClientOriginalName();
             
             \Log::info('Archivo guardado correctamente', [

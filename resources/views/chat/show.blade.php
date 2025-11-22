@@ -62,7 +62,12 @@
                                         @elseif($mensaje->tipo === 'imagen')
                                             <div class="message-media">
                                                 @if($mensaje->archivo_url)
-                                                    <img src="{{ $mensaje->archivo_url }}" alt="{{ $mensaje->archivo_nombre }}" class="img-fluid rounded" style="max-width: 200px; max-height: 200px; object-fit: cover;">
+                                                    <img src="{{ $mensaje->archivo_url }}" 
+                                                         alt="{{ $mensaje->archivo_nombre }}" 
+                                                         class="img-fluid rounded" 
+                                                         style="max-width: 200px; max-height: 200px; object-fit: cover; cursor: pointer;"
+                                                         onerror="this.onerror=null; this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'200\' height=\'200\'%3E%3Crect fill=\'%23ddd\' width=\'200\' height=\'200\'/%3E%3Ctext fill=\'%23999\' font-family=\'sans-serif\' font-size=\'14\' dy=\'10.5\' x=\'50%25\' y=\'50%25\' text-anchor=\'middle\'%3EImagen no disponible%3C/text%3E%3C/svg%3E';"
+                                                         onclick="window.open('{{ $mensaje->archivo_url }}', '_blank');">
                                                     <small class="d-block mt-1">{{ $mensaje->archivo_nombre }}</small>
                                                 @else
                                                     <div class="alert alert-warning">Imagen no disponible</div>
@@ -71,12 +76,20 @@
                                         @elseif($mensaje->tipo === 'video')
                                             <div class="message-media">
                                                 @if($mensaje->archivo_url)
-                                                    <video controls class="img-fluid rounded" style="max-width: 300px;">
+                                                    <video controls class="img-fluid rounded" style="max-width: 300px;" preload="metadata">
                                                         <source src="{{ $mensaje->archivo_url }}" type="video/mp4">
                                                         <source src="{{ $mensaje->archivo_url }}" type="video/webm">
-                                                        Tu navegador no soporta el elemento video.
+                                                        <source src="{{ $mensaje->archivo_url }}" type="video/ogg">
+                                                        <p>Tu navegador no soporta el elemento video. 
+                                                            <a href="{{ $mensaje->archivo_url }}" target="_blank" download>Descargar video</a>
+                                                        </p>
                                                     </video>
-                                                    <small class="d-block mt-1">{{ $mensaje->archivo_nombre }}</small>
+                                                    <small class="d-block mt-1">
+                                                        {{ $mensaje->archivo_nombre }}
+                                                        <a href="{{ $mensaje->archivo_url }}" target="_blank" download class="ms-2 text-decoration-none">
+                                                            <i class="fa fa-download"></i> Descargar
+                                                        </a>
+                                                    </small>
                                                 @else
                                                     <div class="alert alert-warning">Video no disponible</div>
                                                 @endif
@@ -84,13 +97,21 @@
                                         @elseif($mensaje->tipo === 'audio')
                                             <div class="message-media">
                                                 @if($mensaje->archivo_url)
-                                                    <audio controls class="w-100">
+                                                    <audio controls class="w-100" preload="metadata">
                                                         <source src="{{ $mensaje->archivo_url }}" type="audio/mpeg">
                                                         <source src="{{ $mensaje->archivo_url }}" type="audio/webm">
                                                         <source src="{{ $mensaje->archivo_url }}" type="audio/ogg">
-                                                        Tu navegador no soporta el elemento audio.
+                                                        <source src="{{ $mensaje->archivo_url }}" type="audio/wav">
+                                                        <p>Tu navegador no soporta el elemento audio. 
+                                                            <a href="{{ $mensaje->archivo_url }}" target="_blank" download>Descargar audio</a>
+                                                        </p>
                                                     </audio>
-                                                    <small class="d-block mt-1">{{ $mensaje->archivo_nombre }}</small>
+                                                    <small class="d-block mt-1">
+                                                        {{ $mensaje->archivo_nombre }}
+                                                        <a href="{{ $mensaje->archivo_url }}" target="_blank" download class="ms-2 text-decoration-none">
+                                                            <i class="fa fa-download"></i> Descargar
+                                                        </a>
+                                                    </small>
                                                 @else
                                                     <div class="alert alert-warning">Audio no disponible</div>
                                                 @endif
