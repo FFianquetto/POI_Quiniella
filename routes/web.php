@@ -23,15 +23,27 @@ Route::get('/storage/chat_archivos/{filename}', function ($filename) {
     
     $path = storage_path('app/public/chat_archivos/' . $filename);
     
+    // Log para depuración
+    \Log::info('Intentando servir archivo', [
+        'filename' => $filename,
+        'path' => $path,
+        'exists' => file_exists($path),
+        'dir_exists' => file_exists(storage_path('app/public/chat_archivos')),
+        'files_in_dir' => file_exists(storage_path('app/public/chat_archivos')) 
+            ? array_slice(scandir(storage_path('app/public/chat_archivos')), 2) 
+            : []
+    ]);
+    
     if (!file_exists($path)) {
         \Log::warning('Archivo no encontrado en ruta de servicio', [
             'filename' => $filename,
             'path' => $path,
+            'dir_exists' => file_exists(storage_path('app/public/chat_archivos')),
             'files_in_dir' => file_exists(storage_path('app/public/chat_archivos')) 
-                ? count(glob(storage_path('app/public/chat_archivos/*'))) 
-                : 0
+                ? array_slice(scandir(storage_path('app/public/chat_archivos')), 2) 
+                : []
         ]);
-        abort(404, 'Archivo no encontrado');
+        abort(404, 'Archivo no encontrado: ' . $filename);
     }
     
     \Log::info('Sirviendo archivo desde ruta de fallback', [
