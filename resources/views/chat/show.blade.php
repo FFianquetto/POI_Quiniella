@@ -80,26 +80,33 @@
                                                         $extension = strtolower(pathinfo($mensaje->archivo_nombre, PATHINFO_EXTENSION));
                                                         $mimeTypes = [
                                                             'mp4' => 'video/mp4',
-                                                            'webm' => 'video/webm',
+                                                            'webm' => 'video/webm;codecs=vp8,opus', // Especificar codec para webm
                                                             'ogg' => 'video/ogg',
                                                             'avi' => 'video/x-msvideo',
                                                             'mov' => 'video/quicktime',
                                                             'wmv' => 'video/x-ms-wmv',
                                                             'flv' => 'video/x-flv'
                                                         ];
-                                                        $mimeType = $mimeTypes[$extension] ?? 'video/mp4';
+                                                        // Para webm, verificar si el nombre del archivo indica que es video
+                                                        if ($extension === 'webm') {
+                                                            // Si el nombre contiene "video", es video webm
+                                                            if (stripos($mensaje->archivo_nombre, 'video') !== false) {
+                                                                $mimeType = 'video/webm;codecs=vp8,opus';
+                                                            } else {
+                                                                // Por defecto, intentar como video webm
+                                                                $mimeType = 'video/webm;codecs=vp8,opus';
+                                                            }
+                                                        } else {
+                                                            $mimeType = $mimeTypes[$extension] ?? 'video/mp4';
+                                                        }
                                                     @endphp
-                                                    <video controls class="img-fluid rounded video-player" style="max-width: 300px; max-height: 400px; object-fit: contain; display: block;" preload="metadata" playsinline>
+                                                    <video controls class="img-fluid rounded video-player" style="max-width: 300px; max-height: 400px; object-fit: contain; display: block;" preload="metadata" playsinline crossorigin="anonymous">
                                                         <source src="{{ $mensaje->archivo_url }}" type="{{ $mimeType }}">
-                                                        @if($mimeType !== 'video/mp4')
-                                                            <source src="{{ $mensaje->archivo_url }}" type="video/mp4">
-                                                        @endif
-                                                        @if($mimeType !== 'video/webm')
-                                                            <source src="{{ $mensaje->archivo_url }}" type="video/webm">
-                                                        @endif
-                                                        @if($mimeType !== 'video/ogg')
-                                                            <source src="{{ $mensaje->archivo_url }}" type="video/ogg">
-                                                        @endif
+                                                        <source src="{{ $mensaje->archivo_url }}" type="video/webm">
+                                                        <source src="{{ $mensaje->archivo_url }}" type="video/webm;codecs=vp8,opus">
+                                                        <source src="{{ $mensaje->archivo_url }}" type="video/webm;codecs=vp9,opus">
+                                                        <source src="{{ $mensaje->archivo_url }}" type="video/mp4">
+                                                        <source src="{{ $mensaje->archivo_url }}" type="video/ogg">
                                                         Tu navegador no soporta el elemento video.
                                                     </video>
                                                     <small class="d-block mt-1 text-muted" style="font-size: 0.75rem;">{{ $mensaje->archivo_nombre }}</small>
@@ -116,26 +123,30 @@
                                                             'mp3' => 'audio/mpeg',
                                                             'wav' => 'audio/wav',
                                                             'ogg' => 'audio/ogg',
-                                                            'webm' => 'audio/webm',
+                                                            'webm' => 'audio/webm;codecs=opus', // Especificar codec para webm
                                                             'm4a' => 'audio/mp4',
                                                             'aac' => 'audio/aac'
                                                         ];
-                                                        $mimeType = $mimeTypes[$extension] ?? 'audio/mpeg';
+                                                        // Para webm, verificar si el nombre del archivo indica que es audio
+                                                        if ($extension === 'webm') {
+                                                            // Si el nombre contiene "audio", es audio webm
+                                                            if (stripos($mensaje->archivo_nombre, 'audio') !== false) {
+                                                                $mimeType = 'audio/webm;codecs=opus';
+                                                            } else {
+                                                                // Por defecto, intentar como audio webm
+                                                                $mimeType = 'audio/webm;codecs=opus';
+                                                            }
+                                                        } else {
+                                                            $mimeType = $mimeTypes[$extension] ?? 'audio/mpeg';
+                                                        }
                                                     @endphp
-                                                    <audio controls class="w-100 audio-player" preload="metadata" style="outline: none; width: 100%; min-width: 250px;">
+                                                    <audio controls class="w-100 audio-player" preload="metadata" style="outline: none; width: 100%; min-width: 250px;" crossorigin="anonymous">
                                                         <source src="{{ $mensaje->archivo_url }}" type="{{ $mimeType }}">
-                                                        @if($mimeType !== 'audio/mpeg')
-                                                            <source src="{{ $mensaje->archivo_url }}" type="audio/mpeg">
-                                                        @endif
-                                                        @if($mimeType !== 'audio/webm')
-                                                            <source src="{{ $mensaje->archivo_url }}" type="audio/webm">
-                                                        @endif
-                                                        @if($mimeType !== 'audio/ogg')
-                                                            <source src="{{ $mensaje->archivo_url }}" type="audio/ogg">
-                                                        @endif
-                                                        @if($mimeType !== 'audio/wav')
-                                                            <source src="{{ $mensaje->archivo_url }}" type="audio/wav">
-                                                        @endif
+                                                        <source src="{{ $mensaje->archivo_url }}" type="audio/webm">
+                                                        <source src="{{ $mensaje->archivo_url }}" type="audio/webm;codecs=opus">
+                                                        <source src="{{ $mensaje->archivo_url }}" type="audio/mpeg">
+                                                        <source src="{{ $mensaje->archivo_url }}" type="audio/ogg">
+                                                        <source src="{{ $mensaje->archivo_url }}" type="audio/wav">
                                                         Tu navegador no soporta el elemento audio.
                                                     </audio>
                                                     <small class="d-block mt-1 text-muted" style="font-size: 0.75rem;">{{ $mensaje->archivo_nombre }}</small>
@@ -772,7 +783,27 @@ document.addEventListener('DOMContentLoaded', function() {
     btnAudio.addEventListener('click', async function() {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            mediaRecorder = new MediaRecorder(stream);
+            
+            // Detectar el tipo MIME soportado por el navegador
+            let mimeType = 'audio/webm';
+            const options = { mimeType: 'audio/webm' };
+            
+            // Verificar qué tipos MIME soporta MediaRecorder
+            if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+                options.mimeType = 'audio/webm;codecs=opus';
+                mimeType = 'audio/webm';
+            } else if (MediaRecorder.isTypeSupported('audio/webm')) {
+                options.mimeType = 'audio/webm';
+                mimeType = 'audio/webm';
+            } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+                options.mimeType = 'audio/mp4';
+                mimeType = 'audio/mp4';
+            } else if (MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) {
+                options.mimeType = 'audio/ogg;codecs=opus';
+                mimeType = 'audio/ogg';
+            }
+            
+            mediaRecorder = new MediaRecorder(stream, options);
             audioChunks = [];
             
             mediaRecorder.ondataavailable = function(event) {
@@ -782,8 +813,18 @@ document.addEventListener('DOMContentLoaded', function() {
             };
             
             mediaRecorder.onstop = function() {
-                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-                const audioFile = new File([audioBlob], 'audio_grabado_' + Date.now() + '.webm', { type: 'audio/webm' });
+                // Usar el tipo MIME detectado
+                const audioBlob = new Blob(audioChunks, { type: mimeType });
+                
+                // Determinar la extensión basada en el tipo MIME
+                let extension = 'webm';
+                if (mimeType.includes('mp4')) {
+                    extension = 'm4a';
+                } else if (mimeType.includes('ogg')) {
+                    extension = 'ogg';
+                }
+                
+                const audioFile = new File([audioBlob], 'audio_grabado_' + Date.now() + '.' + extension, { type: mimeType });
                 
                 const dataTransfer = new DataTransfer();
                 dataTransfer.items.add(audioFile);
@@ -844,7 +885,26 @@ document.addEventListener('DOMContentLoaded', function() {
                 videoPreview.srcObject = stream;
                 
                 btnGrabarVideo.onclick = function() {
-                    mediaRecorder = new MediaRecorder(stream);
+                    // Detectar el tipo MIME soportado por el navegador para video
+                    let mimeType = 'video/webm';
+                    const options = { mimeType: 'video/webm' };
+                    
+                    // Verificar qué tipos MIME soporta MediaRecorder para video
+                    if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')) {
+                        options.mimeType = 'video/webm;codecs=vp9,opus';
+                        mimeType = 'video/webm';
+                    } else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')) {
+                        options.mimeType = 'video/webm;codecs=vp8,opus';
+                        mimeType = 'video/webm';
+                    } else if (MediaRecorder.isTypeSupported('video/webm')) {
+                        options.mimeType = 'video/webm';
+                        mimeType = 'video/webm';
+                    } else if (MediaRecorder.isTypeSupported('video/mp4')) {
+                        options.mimeType = 'video/mp4';
+                        mimeType = 'video/mp4';
+                    }
+                    
+                    mediaRecorder = new MediaRecorder(stream, options);
                     videoChunks = [];
                     
                     mediaRecorder.ondataavailable = function(event) {
@@ -854,8 +914,16 @@ document.addEventListener('DOMContentLoaded', function() {
                     };
                     
                     mediaRecorder.onstop = function() {
-                        const videoBlob = new Blob(videoChunks, { type: 'video/webm' });
-                        const videoFile = new File([videoBlob], 'video_grabado_' + Date.now() + '.webm', { type: 'video/webm' });
+                        // Usar el tipo MIME detectado
+                        const videoBlob = new Blob(videoChunks, { type: mimeType });
+                        
+                        // Determinar la extensión basada en el tipo MIME
+                        let extension = 'webm';
+                        if (mimeType.includes('mp4')) {
+                            extension = 'mp4';
+                        }
+                        
+                        const videoFile = new File([videoBlob], 'video_grabado_' + Date.now() + '.' + extension, { type: mimeType });
                         
                         const dataTransfer = new DataTransfer();
                         dataTransfer.items.add(videoFile);

@@ -83,14 +83,19 @@ Route::get('/storage/chat_archivos/{filename}', function ($filename) {
         abort(404, 'Archivo no encontrado');
     }
     
-    // Detectar el tipo MIME basado en la extensión
+    // Detectar el tipo MIME basado en la extensión y el contenido del archivo
     $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+    
+    // Intentar detectar el tipo MIME real del archivo
+    $detectedMimeType = mime_content_type($path);
+    
+    // Mapeo de extensiones a tipos MIME
     $mimeTypes = [
         // Audio
         'mp3' => 'audio/mpeg',
         'wav' => 'audio/wav',
         'ogg' => 'audio/ogg',
-        'webm' => 'audio/webm',
+        'webm' => 'audio/webm', // Para archivos de audio webm
         'm4a' => 'audio/mp4',
         'aac' => 'audio/aac',
         // Video
@@ -107,7 +112,29 @@ Route::get('/storage/chat_archivos/{filename}', function ($filename) {
         'webp' => 'image/webp',
     ];
     
-    $mimeType = $mimeTypes[$extension] ?? 'application/octet-stream';
+    // Si el archivo es webm, necesitamos determinar si es audio o video
+    if ($extension === 'webm') {
+        // Primero verificar el nombre del archivo (más confiable para archivos grabados)
+        $filenameLower = strtolower($filename);
+        if (strpos($filenameLower, 'audio') !== false) {
+            $mimeType = 'audio/webm;codecs=opus';
+        } else if (strpos($filenameLower, 'video') !== false) {
+            $mimeType = 'video/webm;codecs=vp8,opus';
+        } else {
+            // Intentar detectar si es audio o video basándose en el contenido MIME
+            if ($detectedMimeType && strpos($detectedMimeType, 'audio') !== false) {
+                $mimeType = 'audio/webm;codecs=opus';
+            } else if ($detectedMimeType && strpos($detectedMimeType, 'video') !== false) {
+                $mimeType = 'video/webm;codecs=vp8,opus';
+            } else {
+                // Por defecto, intentar como video webm
+                $mimeType = 'video/webm;codecs=vp8,opus';
+            }
+        }
+    } else {
+        // Usar el tipo MIME detectado o el mapeo por extensión
+        $mimeType = $detectedMimeType ?: ($mimeTypes[$extension] ?? 'application/octet-stream');
+    }
     
     return response()->file($path, [
         'Content-Type' => $mimeType,
