@@ -594,7 +594,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const archivoInput = document.getElementById('archivo-input');
         const formAction = chatForm.getAttribute('action');
         
-        // Verificar que el formulario tenga la acción correcta
+        // Verificar que el tenga la acción correcta
         // Debe ser algo como /chats/7/mensaje, NO /chats/7/videollamada/señalizacion
         if (formAction && formAction.includes('videollamada')) {
             console.error('ERROR: El formulario tiene una acción incorrecta:', formAction);
