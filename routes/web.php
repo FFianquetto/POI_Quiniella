@@ -44,8 +44,26 @@ Route::get('/storage/chat_archivos/{filename}', function ($filename) {
     // Detectar el tipo MIME basado en la extensión y el contenido del archivo
     $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
     
-    // Intentar detectar el tipo MIME real del archivo
-    $detectedMimeType = mime_content_type($path);
+    // Intentar detectar el tipo MIME real del archivo usando múltiples métodos
+    $detectedMimeType = null;
+    if (function_exists('mime_content_type')) {
+        $detectedMimeType = @mime_content_type($path);
+    }
+    if (!$detectedMimeType && function_exists('finfo_file')) {
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $detectedMimeType = finfo_file($finfo, $path);
+        finfo_close($finfo);
+    }
+    
+    // Leer los primeros bytes del archivo para detectar el formato real
+    $fileHeader = null;
+    if (file_exists($path) && filesize($path) > 0) {
+        $handle = fopen($path, 'rb');
+        if ($handle) {
+            $fileHeader = fread($handle, 12);
+            fclose($handle);
+        }
+    }
     
     // Mapeo de extensiones a tipos MIME
     $mimeTypes = [
@@ -53,11 +71,11 @@ Route::get('/storage/chat_archivos/{filename}', function ($filename) {
         'mp3' => 'audio/mpeg',
         'wav' => 'audio/wav',
         'ogg' => 'audio/ogg',
-        'webm' => 'audio/webm', // Para archivos de audio webm
+        'webm' => 'audio/webm',
         'm4a' => 'audio/mp4',
         'aac' => 'audio/aac',
         // Video
-        'mp4' => 'video/mp4', // Por defecto video, pero puede ser audio (M4A)
+        'mp4' => 'video/mp4',
         'avi' => 'video/x-msvideo',
         'mov' => 'video/quicktime',
         'wmv' => 'video/x-ms-wmv',
@@ -70,40 +88,62 @@ Route::get('/storage/chat_archivos/{filename}', function ($filename) {
         'webp' => 'image/webp',
     ];
     
-    // Si el archivo es webm, necesitamos determinar si es audio o video
+    // Detectar formato basándose en el nombre del archivo (más confiable para archivos grabados)
+    $filenameLower = strtolower($filename);
+    $isAudioFile = strpos($filenameLower, 'audio') !== false || strpos($filenameLower, 'grabado') !== false && strpos($filenameLower, 'video') === false;
+    $isVideoFile = strpos($filenameLower, 'video') !== false;
+    
+    // Si el archivo es webm, determinar si es audio o video
     if ($extension === 'webm') {
-        // Primero verificar el nombre del archivo (más confiable para archivos grabados)
-        $filenameLower = strtolower($filename);
-        if (strpos($filenameLower, 'audio') !== false) {
+        if ($isAudioFile) {
             $mimeType = 'audio/webm;codecs=opus';
-        } else if (strpos($filenameLower, 'video') !== false) {
-            $mimeType = 'video/webm;codecs=vp8,opus';
-        } else {
-            // Intentar detectar si es audio o video basándose en el contenido MIME
-            if ($detectedMimeType && strpos($detectedMimeType, 'audio') !== false) {
-                $mimeType = 'audio/webm;codecs=opus';
-            } else if ($detectedMimeType && strpos($detectedMimeType, 'video') !== false) {
-                $mimeType = 'video/webm;codecs=vp8,opus';
+        } else if ($isVideoFile) {
+            // Detectar codec específico si es posible
+            if ($fileHeader && strpos($fileHeader, 'vp9') !== false) {
+                $mimeType = 'video/webm;codecs=vp9,opus';
             } else {
-                // Por defecto, intentar como video webm
+                $mimeType = 'video/webm;codecs=vp8,opus';
+            }
+        } else {
+            // Intentar detectar desde el tipo MIME detectado
+            if ($detectedMimeType) {
+                if (strpos($detectedMimeType, 'audio') !== false) {
+                    $mimeType = 'audio/webm;codecs=opus';
+                } else if (strpos($detectedMimeType, 'video') !== false) {
+                    $mimeType = 'video/webm;codecs=vp8,opus';
+                } else {
+                    // Por defecto, intentar como video webm
+                    $mimeType = 'video/webm;codecs=vp8,opus';
+                }
+            } else {
+                // Por defecto, video webm
                 $mimeType = 'video/webm;codecs=vp8,opus';
             }
         }
-    } else if ($extension === 'mp4') {
-        // Para MP4, verificar si es audio (M4A) o video
-        $filenameLower = strtolower($filename);
-        if (strpos($filenameLower, 'audio') !== false || strpos($filenameLower, 'm4a') !== false) {
-            $mimeType = 'audio/mp4';
-        } else if ($detectedMimeType && strpos($detectedMimeType, 'audio') !== false) {
+    } else if ($extension === 'mp4' || $extension === 'm4a') {
+        // Para MP4/M4A, verificar si es audio o video
+        if ($extension === 'm4a' || $isAudioFile || ($detectedMimeType && strpos($detectedMimeType, 'audio') !== false)) {
             $mimeType = 'audio/mp4';
         } else {
-            // Por defecto, video MP4
             $mimeType = 'video/mp4';
         }
     } else {
-        // Usar el tipo MIME detectado o el mapeo por extensión
-        $mimeType = $detectedMimeType ?: ($mimeTypes[$extension] ?? 'application/octet-stream');
+        // Usar el tipo MIME detectado primero, luego el mapeo por extensión
+        if ($detectedMimeType && $detectedMimeType !== 'application/octet-stream') {
+            $mimeType = $detectedMimeType;
+        } else {
+            $mimeType = $mimeTypes[$extension] ?? 'application/octet-stream';
+        }
     }
+    
+    \Log::info('Tipo MIME determinado para archivo', [
+        'filename' => $filename,
+        'extension' => $extension,
+        'detected_mime' => $detectedMimeType,
+        'final_mime' => $mimeType,
+        'is_audio_file' => $isAudioFile,
+        'is_video_file' => $isVideoFile
+    ]);
     
     // Headers importantes para streaming de audio/video
     $headers = [

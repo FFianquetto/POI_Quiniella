@@ -906,24 +906,16 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             
-            // Priorizar MP4/M4A (audio/mp4) sobre webm para mejor compatibilidad
-            let mimeType = 'audio/mp4';
-            let extension = 'm4a';
+            // Priorizar WebM que es el formato más compatible en todos los navegadores
+            // MP4/M4A solo funciona en Safari y algunos navegadores móviles
+            let mimeType = 'audio/webm';
+            let extension = 'webm';
             const options = {};
             
-            // Verificar qué tipos MIME soporta MediaRecorder, priorizando MP4
-            if (MediaRecorder.isTypeSupported('audio/mp4')) {
-                options.mimeType = 'audio/mp4';
-                mimeType = 'audio/mp4';
-                extension = 'm4a';
-            } else if (MediaRecorder.isTypeSupported('audio/mpeg')) {
-                // Algunos navegadores soportan audio/mpeg directamente
-                options.mimeType = 'audio/mpeg';
-                mimeType = 'audio/mpeg';
-                extension = 'mp3';
-            } else if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+            // Verificar qué tipos MIME soporta MediaRecorder, priorizando WebM para compatibilidad
+            if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
                 options.mimeType = 'audio/webm;codecs=opus';
-                mimeType = 'audio/webm';
+                mimeType = 'audio/webm;codecs=opus';
                 extension = 'webm';
             } else if (MediaRecorder.isTypeSupported('audio/webm')) {
                 options.mimeType = 'audio/webm';
@@ -931,14 +923,29 @@ document.addEventListener('DOMContentLoaded', function() {
                 extension = 'webm';
             } else if (MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) {
                 options.mimeType = 'audio/ogg;codecs=opus';
+                mimeType = 'audio/ogg;codecs=opus';
+                extension = 'ogg';
+            } else if (MediaRecorder.isTypeSupported('audio/ogg')) {
+                options.mimeType = 'audio/ogg';
                 mimeType = 'audio/ogg';
                 extension = 'ogg';
+            } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+                // Solo usar MP4 si WebM no está disponible (Safari principalmente)
+                options.mimeType = 'audio/mp4';
+                mimeType = 'audio/mp4';
+                extension = 'm4a';
+            } else if (MediaRecorder.isTypeSupported('audio/mpeg')) {
+                options.mimeType = 'audio/mpeg';
+                mimeType = 'audio/mpeg';
+                extension = 'mp3';
             } else {
-                // Fallback por defecto
+                // Fallback por defecto - WebM es el más compatible
                 options.mimeType = 'audio/webm';
                 mimeType = 'audio/webm';
                 extension = 'webm';
             }
+            
+            console.log('Grabando audio con:', { mimeType, extension, supported: MediaRecorder.isTypeSupported(options.mimeType) });
             
             mediaRecorder = new MediaRecorder(stream, options);
             audioChunks = [];
@@ -950,9 +957,31 @@ document.addEventListener('DOMContentLoaded', function() {
             };
             
             mediaRecorder.onstop = function() {
-                // Usar el tipo MIME detectado
-                const audioBlob = new Blob(audioChunks, { type: mimeType });
-                const audioFile = new File([audioBlob], 'audio_grabado_' + Date.now() + '.' + extension, { type: mimeType });
+                // Obtener el tipo MIME real que se usó (puede diferir del solicitado)
+                const actualMimeType = mediaRecorder.mimeType || mimeType;
+                console.log('Audio grabado con tipo MIME real:', actualMimeType);
+                
+                // Ajustar la extensión según el tipo MIME real
+                let actualExtension = extension;
+                if (actualMimeType.includes('webm')) {
+                    actualExtension = 'webm';
+                } else if (actualMimeType.includes('ogg')) {
+                    actualExtension = 'ogg';
+                } else if (actualMimeType.includes('mp4') || actualMimeType.includes('m4a')) {
+                    actualExtension = 'm4a';
+                } else if (actualMimeType.includes('mpeg')) {
+                    actualExtension = 'mp3';
+                }
+                
+                // Usar el tipo MIME real del MediaRecorder
+                const audioBlob = new Blob(audioChunks, { type: actualMimeType });
+                const audioFile = new File([audioBlob], 'audio_grabado_' + Date.now() + '.' + actualExtension, { type: actualMimeType });
+                
+                console.log('Archivo de audio creado:', {
+                    name: audioFile.name,
+                    type: audioFile.type,
+                    size: audioFile.size
+                });
                 
                 const dataTransfer = new DataTransfer();
                 dataTransfer.items.add(audioFile);
@@ -1013,13 +1042,27 @@ document.addEventListener('DOMContentLoaded', function() {
                 videoPreview.srcObject = stream;
                 
                 btnGrabarVideo.onclick = function() {
-                    // Priorizar MP4 sobre webm para mejor compatibilidad
-                    let mimeType = 'video/mp4';
-                    let extension = 'mp4';
+                    // Priorizar WebM que es el formato más compatible en todos los navegadores
+                    // MP4 solo funciona en Safari y algunos navegadores móviles
+                    let mimeType = 'video/webm';
+                    let extension = 'webm';
                     const options = {};
                     
-                    // Verificar qué tipos MIME soporta MediaRecorder para video, priorizando MP4
-                    if (MediaRecorder.isTypeSupported('video/mp4')) {
+                    // Verificar qué tipos MIME soporta MediaRecorder para video, priorizando WebM
+                    if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')) {
+                        options.mimeType = 'video/webm;codecs=vp9,opus';
+                        mimeType = 'video/webm;codecs=vp9,opus';
+                        extension = 'webm';
+                    } else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')) {
+                        options.mimeType = 'video/webm;codecs=vp8,opus';
+                        mimeType = 'video/webm;codecs=vp8,opus';
+                        extension = 'webm';
+                    } else if (MediaRecorder.isTypeSupported('video/webm')) {
+                        options.mimeType = 'video/webm';
+                        mimeType = 'video/webm';
+                        extension = 'webm';
+                    } else if (MediaRecorder.isTypeSupported('video/mp4')) {
+                        // Solo usar MP4 si WebM no está disponible (Safari principalmente)
                         options.mimeType = 'video/mp4';
                         mimeType = 'video/mp4';
                         extension = 'mp4';
@@ -1027,24 +1070,14 @@ document.addEventListener('DOMContentLoaded', function() {
                         options.mimeType = 'video/mp4;codecs=h264';
                         mimeType = 'video/mp4';
                         extension = 'mp4';
-                    } else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')) {
-                        options.mimeType = 'video/webm;codecs=vp9,opus';
-                        mimeType = 'video/webm';
-                        extension = 'webm';
-                    } else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')) {
-                        options.mimeType = 'video/webm;codecs=vp8,opus';
-                        mimeType = 'video/webm';
-                        extension = 'webm';
-                    } else if (MediaRecorder.isTypeSupported('video/webm')) {
-                        options.mimeType = 'video/webm';
-                        mimeType = 'video/webm';
-                        extension = 'webm';
                     } else {
-                        // Fallback por defecto
+                        // Fallback por defecto - WebM es el más compatible
                         options.mimeType = 'video/webm';
                         mimeType = 'video/webm';
                         extension = 'webm';
                     }
+                    
+                    console.log('Grabando video con:', { mimeType, extension, supported: MediaRecorder.isTypeSupported(options.mimeType) });
                     
                     mediaRecorder = new MediaRecorder(stream, options);
                     videoChunks = [];
@@ -1056,9 +1089,29 @@ document.addEventListener('DOMContentLoaded', function() {
                     };
                     
                     mediaRecorder.onstop = function() {
-                        // Usar el tipo MIME detectado
-                        const videoBlob = new Blob(videoChunks, { type: mimeType });
-                        const videoFile = new File([videoBlob], 'video_grabado_' + Date.now() + '.' + extension, { type: mimeType });
+                        // Obtener el tipo MIME real que se usó (puede diferir del solicitado)
+                        const actualMimeType = mediaRecorder.mimeType || mimeType;
+                        console.log('Video grabado con tipo MIME real:', actualMimeType);
+                        
+                        // Ajustar la extensión según el tipo MIME real
+                        let actualExtension = extension;
+                        if (actualMimeType.includes('webm')) {
+                            actualExtension = 'webm';
+                        } else if (actualMimeType.includes('mp4')) {
+                            actualExtension = 'mp4';
+                        } else if (actualMimeType.includes('ogg')) {
+                            actualExtension = 'ogv';
+                        }
+                        
+                        // Usar el tipo MIME real del MediaRecorder
+                        const videoBlob = new Blob(videoChunks, { type: actualMimeType });
+                        const videoFile = new File([videoBlob], 'video_grabado_' + Date.now() + '.' + actualExtension, { type: actualMimeType });
+                        
+                        console.log('Archivo de video creado:', {
+                            name: videoFile.name,
+                            type: videoFile.type,
+                            size: videoFile.size
+                        });
                         
                         const dataTransfer = new DataTransfer();
                         dataTransfer.items.add(videoFile);
