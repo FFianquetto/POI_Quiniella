@@ -589,6 +589,16 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Validar y enviar el formulario correctamente
     chatForm.addEventListener('submit', function(e) {
+        // Detener cualquier conexión SSE de videollamada que pueda estar activa
+        // para evitar interferencias con el envío del formulario
+        if (typeof videoCall !== 'undefined' && videoCall) {
+            try {
+                videoCall.stopSignalingPolling();
+            } catch (err) {
+                console.warn('Error al detener polling de videollamada:', err);
+            }
+        }
+        
         // Obtener elementos del formulario
         const mensajeTexto = document.getElementById('mensaje-texto');
         const archivoInput = document.getElementById('archivo-input');

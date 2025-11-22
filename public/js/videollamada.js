@@ -58,8 +58,8 @@ class VideoCall {
         this.bindEvents();
         this.initializeCallNotification();
         
-        // Iniciar escucha de llamadas entrantes automáticamente
-        this.startSignalingPolling();
+        // NO iniciar escucha automáticamente para evitar interferencias con el envío de mensajes
+        // El polling se iniciará solo cuando sea necesario (al iniciar videollamada o al aceptar llamada entrante)
     }
     
     initializeElements() {
