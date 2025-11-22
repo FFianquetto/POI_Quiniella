@@ -372,12 +372,16 @@ class VideoCall {
                 this.videoLocal.srcObject = this.localStream;
             }
             
+            // Inicializar stream remoto antes de crear la conexión
+            this.remoteStream = new MediaStream();
+            
             // Crear conexión peer
             this.peerConnection = new RTCPeerConnection(this.configuration);
             
             // Agregar tracks locales
             this.localStream.getTracks().forEach(track => {
                 this.peerConnection.addTrack(track, this.localStream);
+                console.log('Track local agregado:', track.kind, track.id);
             });
             
             // Configurar handlers
@@ -412,16 +416,87 @@ class VideoCall {
      * Configurar handlers de la conexión peer
      */
     setupPeerConnectionHandlers() {
+        // Crear un stream remoto combinado para todos los tracks
+        if (!this.remoteStream) {
+            this.remoteStream = new MediaStream();
+        }
+        
         // Cuando recibimos un track remoto
         this.peerConnection.ontrack = (event) => {
-            console.log('Track remoto recibido:', event.track.kind);
-            this.remoteStream = event.streams[0];
+            console.log('Track remoto recibido:', {
+                kind: event.track.kind,
+                id: event.track.id,
+                enabled: event.track.enabled,
+                readyState: event.track.readyState,
+                streams: event.streams.length
+            });
+            
+            // Agregar el track al stream remoto combinado
+            if (event.track && !this.remoteStream.getTracks().find(t => t.id === event.track.id)) {
+                this.remoteStream.addTrack(event.track);
+                console.log('Track agregado al stream remoto:', event.track.kind);
+            }
+            
+            // Si el stream viene en el evento, también agregar esos tracks
+            if (event.streams && event.streams.length > 0) {
+                event.streams[0].getTracks().forEach(track => {
+                    if (!this.remoteStream.getTracks().find(t => t.id === track.id)) {
+                        this.remoteStream.addTrack(track);
+                        console.log('Track del stream agregado:', track.kind);
+                    }
+                });
+            }
+            
+            // Asignar el stream al elemento de video
             if (this.videoRemoto) {
                 this.videoRemoto.srcObject = this.remoteStream;
+                
+                // Forzar reproducción del video
+                this.videoRemoto.play().catch(error => {
+                    console.warn('Error al reproducir video remoto:', error);
+                });
+                
+                // Agregar listener para cuando el video esté listo
+                this.videoRemoto.onloadedmetadata = () => {
+                    console.log('Metadata del video remoto cargada');
+                    this.videoRemoto.play().catch(error => {
+                        console.warn('Error al reproducir después de metadata:', error);
+                    });
+                };
             }
-            this.isInCall = true;
-            this.iniciarTimer();
-            this.ocultarEstado();
+            
+            // Log del estado del stream
+            console.log('Stream remoto actual:', {
+                videoTracks: this.remoteStream.getVideoTracks().length,
+                audioTracks: this.remoteStream.getAudioTracks().length,
+                totalTracks: this.remoteStream.getTracks().length
+            });
+            
+            // Iniciar timer y actualizar estado solo si es la primera vez
+            if (!this.isInCall) {
+                this.isInCall = true;
+                this.iniciarTimer();
+                this.ocultarEstado();
+            }
+            
+            // Listener para cuando el track cambie de estado
+            event.track.onended = () => {
+                console.log('Track remoto terminado:', event.track.kind);
+            };
+            
+            event.track.onmute = () => {
+                console.log('Track remoto silenciado:', event.track.kind);
+            };
+            
+            event.track.onunmute = () => {
+                console.log('Track remoto activado:', event.track.kind);
+                // Asegurar que el video se muestre cuando el track se active
+                if (event.track.kind === 'video' && this.videoRemoto) {
+                    this.videoRemoto.play().catch(error => {
+                        console.warn('Error al reproducir video después de unmute:', error);
+                    });
+                }
+            };
         };
         
         // Cuando se genera un ICE candidate
@@ -437,10 +512,29 @@ class VideoCall {
             
             switch (state) {
                 case 'connected':
+                    console.log('Conexión WebRTC establecida');
                     this.isInCall = true;
                     this.iniciarTimer();
                     this.ocultarEstado();
                     this.detenerPolling(); // Ya no necesitamos polling cuando estamos conectados
+                    
+                    // Verificar que los tracks remotos estén disponibles
+                    if (this.remoteStream) {
+                        const videoTracks = this.remoteStream.getVideoTracks();
+                        const audioTracks = this.remoteStream.getAudioTracks();
+                        console.log('Tracks remotos después de conexión:', {
+                            video: videoTracks.length,
+                            audio: audioTracks.length
+                        });
+                        
+                        // Si hay tracks pero el video no se muestra, forzar actualización
+                        if (videoTracks.length > 0 && this.videoRemoto) {
+                            this.videoRemoto.srcObject = this.remoteStream;
+                            this.videoRemoto.play().catch(error => {
+                                console.warn('Error al reproducir video después de conexión:', error);
+                            });
+                        }
+                    }
                     break;
                 case 'disconnected':
                     // Intentar reconectar solo si no fue intencional
@@ -482,6 +576,28 @@ class VideoCall {
                 case 'connected':
                 case 'completed':
                     // Conexión establecida correctamente
+                    console.log('ICE connection state:', iceState);
+                    if (iceState === 'completed') {
+                        // Verificar tracks remotos cuando la conexión ICE se complete
+                        if (this.remoteStream) {
+                            const videoTracks = this.remoteStream.getVideoTracks();
+                            const audioTracks = this.remoteStream.getAudioTracks();
+                            console.log('Tracks remotos cuando ICE completado:', {
+                                video: videoTracks.length,
+                                audio: audioTracks.length,
+                                videoEnabled: videoTracks.length > 0 ? videoTracks[0].enabled : false,
+                                audioEnabled: audioTracks.length > 0 ? audioTracks[0].enabled : false
+                            });
+                            
+                            // Asegurar que el video se muestre
+                            if (videoTracks.length > 0 && this.videoRemoto) {
+                                this.videoRemoto.srcObject = this.remoteStream;
+                                this.videoRemoto.play().catch(error => {
+                                    console.warn('Error al reproducir video cuando ICE completado:', error);
+                                });
+                            }
+                        }
+                    }
                     break;
             }
         };
@@ -976,12 +1092,16 @@ class VideoCall {
                 this.videoLocal.srcObject = this.localStream;
             }
             
+            // Inicializar stream remoto antes de crear la conexión
+            this.remoteStream = new MediaStream();
+            
             // Crear conexión peer
             this.peerConnection = new RTCPeerConnection(this.configuration);
             
             // Agregar tracks locales
             this.localStream.getTracks().forEach(track => {
                 this.peerConnection.addTrack(track, this.localStream);
+                console.log('Track local agregado:', track.kind, track.id);
             });
             
             // Configurar handlers
@@ -1171,6 +1291,15 @@ class VideoCall {
         if (this.localStream) {
             this.localStream.getTracks().forEach(track => track.stop());
             this.localStream = null;
+        }
+        
+        // Detener y limpiar stream remoto
+        if (this.remoteStream) {
+            this.remoteStream.getTracks().forEach(track => {
+                track.stop();
+                this.remoteStream.removeTrack(track);
+            });
+            this.remoteStream = null;
         }
         
         // Limpiar videos
