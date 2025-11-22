@@ -26,6 +26,10 @@ class VideoCall {
         // Señalización
         this.signalingInterval = null;
         this.lastMessageId = 0;
+        this.incomingOffer = null;
+        this.callNotificationSound = null;
+        this.isRinging = false;
+        this.ringingInterval = null;
         
         // Configuración WebRTC optimizada para producción
         this.configuration = {
@@ -62,6 +66,125 @@ class VideoCall {
         
         this.initializeElements();
         this.bindEvents();
+        this.initializeCallNotification();
+        
+        // Iniciar polling automáticamente para detectar llamadas entrantes
+        // Solo si no estamos en una llamada activa
+        if (!this.isInCall) {
+            this.iniciarPolling();
+        }
+    }
+    
+    /**
+     * Inicializar sistema de notificación de llamadas
+     */
+    initializeCallNotification() {
+        // Crear audio context para sonido de llamada
+        try {
+            this.callNotificationSound = new Audio();
+            // Usar un sonido de llamada simple generado con Web Audio API
+            this.createCallSound();
+        } catch (error) {
+            console.warn('No se pudo inicializar el sistema de notificación de sonido:', error);
+        }
+    }
+    
+    /**
+     * Crear sonido de llamada usando Web Audio API
+     */
+    createCallSound() {
+        try {
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            this.audioContext = audioContext;
+        } catch (error) {
+            console.warn('No se pudo crear AudioContext:', error);
+        }
+    }
+    
+    /**
+     * Reproducir sonido de llamada entrante
+     */
+    playCallSound() {
+        if (!this.audioContext) {
+            return;
+        }
+        
+        this.isRinging = true;
+        
+        const playTone = () => {
+            if (!this.isRinging || !this.audioContext) {
+                return;
+            }
+            
+            try {
+                const oscillator = this.audioContext.createOscillator();
+                const gainNode = this.audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(this.audioContext.destination);
+                
+                // Frecuencia de timbre de teléfono (típicamente 440Hz y 480Hz alternando)
+                oscillator.frequency.value = 440;
+                oscillator.type = 'sine';
+                
+                // Fade in/out para sonido más suave
+                gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
+                gainNode.gain.linearRampToValueAtTime(0.3, this.audioContext.currentTime + 0.1);
+                gainNode.gain.linearRampToValueAtTime(0, this.audioContext.currentTime + 0.4);
+                
+                oscillator.start(this.audioContext.currentTime);
+                oscillator.stop(this.audioContext.currentTime + 0.4);
+                
+                // Segunda frecuencia después de un breve delay
+                setTimeout(() => {
+                    if (!this.isRinging || !this.audioContext) {
+                        return;
+                    }
+                    
+                    const oscillator2 = this.audioContext.createOscillator();
+                    const gainNode2 = this.audioContext.createGain();
+                    
+                    oscillator2.connect(gainNode2);
+                    gainNode2.connect(this.audioContext.destination);
+                    
+                    oscillator2.frequency.value = 480;
+                    oscillator2.type = 'sine';
+                    
+                    gainNode2.gain.setValueAtTime(0, this.audioContext.currentTime);
+                    gainNode2.gain.linearRampToValueAtTime(0.3, this.audioContext.currentTime + 0.1);
+                    gainNode2.gain.linearRampToValueAtTime(0, this.audioContext.currentTime + 0.4);
+                    
+                    oscillator2.start(this.audioContext.currentTime);
+                    oscillator2.stop(this.audioContext.currentTime + 0.4);
+                }, 200);
+                
+            } catch (error) {
+                console.warn('Error al reproducir sonido:', error);
+            }
+        };
+        
+        // Reproducir inmediatamente
+        playTone();
+        
+        // Repetir cada segundo mientras está sonando
+        this.ringingInterval = setInterval(() => {
+            if (this.isRinging && this.audioContext) {
+                playTone();
+            } else {
+                this.stopCallSound();
+            }
+        }, 1000);
+    }
+    
+    /**
+     * Detener sonido de llamada
+     */
+    stopCallSound() {
+        this.isRinging = false;
+        if (this.ringingInterval) {
+            clearInterval(this.ringingInterval);
+            this.ringingInterval = null;
+        }
     }
     
     initializeElements() {
@@ -431,26 +554,26 @@ class VideoCall {
         }
         
         let pollingAttempts = 0;
-        const maxPollingAttempts = 150; // 5 minutos máximo (150 * 2 segundos)
+        const maxPollingAttempts = 300; // 10 minutos máximo para polling continuo (300 * 2 segundos)
+        
+        console.log('Iniciando polling de señalización...');
         
         this.signalingInterval = setInterval(async () => {
-            // Si ya estamos conectados, reducir frecuencia de polling
+            // Si ya estamos conectados en una llamada, seguir polling pero con menos frecuencia
+            // (necesario para recibir ICE candidates y otros mensajes)
             if (this.isInCall && this.peerConnection?.connectionState === 'connected') {
                 pollingAttempts = 0; // Resetear contador
-                return;
+                // Continuar polling pero con menos frecuencia (cada 5 segundos en lugar de 2)
+                // Esto se maneja con el intervalo existente
             }
             
             pollingAttempts++;
             
-            // Limitar tiempo de polling para evitar consumo excesivo
-            if (pollingAttempts > maxPollingAttempts) {
-                console.warn('Polling excedió el tiempo máximo');
-                this.detenerPolling();
-                if (!this.isInCall) {
-                    this.actualizarEstado('Timeout de conexión. Por favor, intenta de nuevo.');
-                    setTimeout(() => this.endCall(), 3000);
-                }
-                return;
+            // Limitar tiempo de polling solo si no estamos en llamada
+            if (!this.isInCall && pollingAttempts > maxPollingAttempts) {
+                console.warn('Polling excedió el tiempo máximo sin llamada activa');
+                // No detener el polling, solo resetear el contador
+                pollingAttempts = 0;
             }
             
             try {
@@ -477,7 +600,7 @@ class VideoCall {
                 if (!response.ok) {
                     if (response.status === 401 || response.status === 403) {
                         console.error('Error de autenticación en polling');
-                        this.detenerPolling();
+                        // No detener polling, puede ser temporal
                     }
                     return;
                 }
@@ -490,6 +613,7 @@ class VideoCall {
                             continue;
                         }
                         
+                        console.log('Mensaje de señalización recibido:', mensaje.tipo);
                         await this.procesarMensajeSeñalizacion(mensaje.tipo, mensaje.datos);
                     }
                     pollingAttempts = 0; // Resetear contador al recibir mensajes
@@ -521,16 +645,27 @@ class VideoCall {
         try {
             switch (tipo) {
                 case 'offer':
+                    console.log('Offer recibido, procesando...');
+                    
                     // Si ya somos iniciadores, ignorar
                     if (this.isInitiator) {
+                        console.log('Ignorando offer porque ya somos iniciadores');
                         return;
                     }
                     
                     // Si ya estamos en llamada, ignorar
                     if (this.isInCall || this.peerConnection) {
+                        console.log('Ignorando offer porque ya hay una llamada activa');
                         return;
                     }
                     
+                    // Si ya hay una oferta pendiente, ignorar esta nueva
+                    if (this.incomingOffer) {
+                        console.log('Ya hay una oferta pendiente, ignorando nueva');
+                        return;
+                    }
+                    
+                    console.log('Mostrando notificación de llamada entrante');
                     // Mostrar notificación de llamada entrante
                     this.mostrarLlamadaEntrante(datos);
                     break;
@@ -574,19 +709,44 @@ class VideoCall {
      * Mostrar notificación de llamada entrante
      */
     mostrarLlamadaEntrante(offerData) {
+        console.log('Mostrando modal de llamada entrante');
         this.incomingOffer = offerData;
+        
+        // Reproducir sonido de llamada
+        this.playCallSound();
+        
+        // Actualizar nombre del llamante si está disponible
+        if (this.nombreLlamante) {
+            this.nombreLlamante.textContent = 'Llamada entrante...';
+        }
         
         if (this.modalLlamadaEntrante) {
             if (typeof bootstrap !== 'undefined') {
-                const modal = new bootstrap.Modal(this.modalLlamadaEntrante, {
-                    backdrop: 'static',
-                    keyboard: false
-                });
-                modal.show();
+                try {
+                    // Cerrar cualquier modal existente primero
+                    const existingModal = bootstrap.Modal.getInstance(this.modalLlamadaEntrante);
+                    if (existingModal) {
+                        existingModal.hide();
+                    }
+                    
+                    const modal = new bootstrap.Modal(this.modalLlamadaEntrante, {
+                        backdrop: 'static',
+                        keyboard: false
+                    });
+                    modal.show();
+                    console.log('Modal de llamada entrante mostrado');
+                } catch (error) {
+                    console.error('Error al mostrar modal con Bootstrap:', error);
+                    // Fallback manual
+                    this.modalLlamadaEntrante.style.display = 'block';
+                    this.modalLlamadaEntrante.classList.add('show');
+                }
             } else {
                 this.modalLlamadaEntrante.style.display = 'block';
                 this.modalLlamadaEntrante.classList.add('show');
             }
+        } else {
+            console.error('Modal de llamada entrante no encontrado');
         }
     }
     
@@ -600,6 +760,9 @@ class VideoCall {
             console.error('No hay oferta de llamada para aceptar');
             return;
         }
+        
+        // Detener sonido de llamada
+        this.stopCallSound();
         
         // Cerrar modal de notificación
         if (this.modalLlamadaEntrante) {
@@ -697,6 +860,9 @@ class VideoCall {
     async rechazarLlamada() {
         console.log('Rechazando llamada entrante...');
         
+        // Detener sonido de llamada
+        this.stopCallSound();
+        
         if (this.incomingOffer) {
             await this.enviarSeñalizacion('call-rejected', {});
             this.incomingOffer = null;
@@ -766,7 +932,7 @@ class VideoCall {
     endCall() {
         this.isInCall = false;
         this.detenerTimer();
-        this.detenerPolling();
+        this.stopCallSound();
         
         // Cerrar conexión peer
         if (this.peerConnection) {
@@ -810,9 +976,17 @@ class VideoCall {
         }
         
         // Resetear estado
+        const wasInCall = this.isInCall;
         this.isInitiator = false;
         this.callId = null;
         this.incomingOffer = null;
+        this.isInCall = false;
+        
+        // Reiniciar polling si estábamos en llamada (para detectar nuevas llamadas)
+        // El polling debe continuar activo para detectar llamadas entrantes
+        if (wasInCall && !this.signalingInterval) {
+            this.iniciarPolling();
+        }
         
         // Resetear botones
         if (this.btnToggleAudio) {
