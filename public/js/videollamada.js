@@ -676,7 +676,39 @@ class VideoCall {
                         return;
                     }
                     
-                    await this.peerConnection.setRemoteDescription(new RTCSessionDescription(datos));
+                    // Limpiar y normalizar el SDP antes de procesarlo
+                    const cleanedAnswer = this.limpiarSessionDescription(datos);
+                    try {
+                        await this.peerConnection.setRemoteDescription(new RTCSessionDescription(cleanedAnswer));
+                    } catch (sdpError) {
+                        console.error('Error al procesar SDP de answer:', sdpError);
+                        // Intentar limpieza más agresiva
+                        if (cleanedAnswer.sdp) {
+                            let sdpLines = cleanedAnswer.sdp.split('\r\n');
+                            sdpLines = sdpLines.filter(line => {
+                                if (line.startsWith('a=ssrc:')) {
+                                    const msidIndex = line.indexOf('msid:');
+                                    if (msidIndex > 0) {
+                                        const afterMsid = line.substring(msidIndex + 5);
+                                        const parts = afterMsid.trim().split(/\s+/);
+                                        if (parts.length > 2) {
+                                            return false;
+                                        }
+                                    }
+                                }
+                                return true;
+                            });
+                            
+                            const moreCleanedAnswer = {
+                                type: cleanedAnswer.type,
+                                sdp: sdpLines.join('\r\n') + '\r\n'
+                            };
+                            
+                            await this.peerConnection.setRemoteDescription(new RTCSessionDescription(moreCleanedAnswer));
+                        } else {
+                            throw sdpError;
+                        }
+                    }
                     break;
                     
                 case 'ice-candidate':
@@ -748,6 +780,99 @@ class VideoCall {
         } else {
             console.error('Modal de llamada entrante no encontrado');
         }
+    }
+    
+    /**
+     * Normalizar y limpiar SDP para evitar errores de parsing
+     * El SDP puede corromperse durante la serialización JSON
+     */
+    normalizarSDP(sdpString) {
+        if (!sdpString || typeof sdpString !== 'string') {
+            return sdpString;
+        }
+        
+        // Dividir en líneas y limpiar
+        let lineas = sdpString.split(/\r?\n/);
+        const lineasLimpias = [];
+        
+        for (let i = 0; i < lineas.length; i++) {
+            let linea = lineas[i].trim();
+            
+            // Saltar líneas vacías
+            if (!linea) {
+                continue;
+            }
+            
+            // Detectar y corregir líneas a=ssrc con múltiples msid en la misma línea
+            // Formato esperado: a=ssrc:SSRC_ID msid:MSID1 MSID2
+            // Si hay dos msid en la misma línea, separarlos correctamente
+            if (linea.startsWith('a=ssrc:') && linea.includes('msid:')) {
+                // Contar cuántos msid: hay en la línea
+                const msidMatches = linea.match(/msid:/g);
+                if (msidMatches && msidMatches.length > 1) {
+                    // Hay múltiples msid, necesitamos separarlos
+                    // Formato: a=ssrc:ID msid:MSID1 MSID2
+                    // Debe ser: a=ssrc:ID msid:MSID1
+                    //          a=ssrc:ID msid:MSID2
+                    const ssrcMatch = linea.match(/^a=ssrc:(\d+)/);
+                    if (ssrcMatch) {
+                        const ssrcId = ssrcMatch[1];
+                        const msidParts = linea.split('msid:');
+                        // La primera parte es "a=ssrc:ID ", el resto son los msid
+                        for (let j = 1; j < msidParts.length; j++) {
+                            const msidValue = msidParts[j].trim().split(/\s+/)[0]; // Tomar solo el primer valor
+                            if (msidValue) {
+                                lineasLimpias.push(`a=ssrc:${ssrcId} msid:${msidValue}`);
+                            }
+                        }
+                        continue;
+                    }
+                }
+            }
+            
+            // Detectar líneas que pueden tener caracteres inválidos o saltos de línea incorrectos
+            // Si una línea parece estar dividida incorrectamente (empieza con espacio pero no es continuación)
+            if (linea.match(/^[a-z]=/) || linea.match(/^[a-z]:/)) {
+                // Es una línea válida de SDP
+                lineasLimpias.push(linea);
+            } else if (linea.match(/^[a-z]/)) {
+                // Línea que empieza con letra minúscula (puede ser continuación de línea anterior)
+                // Verificar si la línea anterior necesita esta continuación
+                if (lineasLimpias.length > 0) {
+                    const ultimaLinea = lineasLimpias[lineasLimpias.length - 1];
+                    // Si la última línea es una línea de atributo que puede tener continuación
+                    if (ultimaLinea.startsWith('a=') && !ultimaLinea.endsWith('\\')) {
+                        // Puede ser una línea separada incorrectamente, unirla
+                        lineasLimpias[lineasLimpias.length - 1] = ultimaLinea + ' ' + linea;
+                        continue;
+                    }
+                }
+                lineasLimpias.push(linea);
+            } else {
+                // Otras líneas (pueden ser comentarios o líneas especiales)
+                lineasLimpias.push(linea);
+            }
+        }
+        
+        // Unir las líneas con \r\n (formato estándar SDP)
+        return lineasLimpias.join('\r\n') + '\r\n';
+    }
+    
+    /**
+     * Validar y limpiar RTCSessionDescription antes de usarlo
+     */
+    limpiarSessionDescription(sessionDescription) {
+        if (!sessionDescription || !sessionDescription.sdp) {
+            return sessionDescription;
+        }
+        
+        // Crear una copia del objeto
+        const cleaned = {
+            type: sessionDescription.type,
+            sdp: this.normalizarSDP(sessionDescription.sdp)
+        };
+        
+        return cleaned;
     }
     
     /**
@@ -828,8 +953,54 @@ class VideoCall {
             // Configurar handlers
             this.setupPeerConnectionHandlers();
             
-            // Procesar offer recibido
-            await this.peerConnection.setRemoteDescription(new RTCSessionDescription(this.incomingOffer));
+            // Limpiar y normalizar el SDP antes de procesarlo
+            const cleanedOffer = this.limpiarSessionDescription(this.incomingOffer);
+            console.log('SDP limpiado, procesando offer...');
+            
+            // Procesar offer recibido con manejo de errores mejorado
+            try {
+                await this.peerConnection.setRemoteDescription(new RTCSessionDescription(cleanedOffer));
+            } catch (sdpError) {
+                console.error('Error al procesar SDP:', sdpError);
+                console.error('SDP original:', this.incomingOffer);
+                console.error('SDP limpiado:', cleanedOffer);
+                
+                // Intentar una limpieza más agresiva
+                if (cleanedOffer.sdp) {
+                    // Eliminar líneas problemáticas específicas relacionadas con msid duplicados
+                    let sdpLines = cleanedOffer.sdp.split('\r\n');
+                    sdpLines = sdpLines.filter(line => {
+                        // Eliminar líneas a=ssrc que tengan formato inválido
+                        if (line.startsWith('a=ssrc:')) {
+                            // Contar espacios después de msid:
+                            const msidIndex = line.indexOf('msid:');
+                            if (msidIndex > 0) {
+                                const afterMsid = line.substring(msidIndex + 5);
+                                // Si hay múltiples valores separados por espacios sin otro atributo, es inválido
+                                const parts = afterMsid.trim().split(/\s+/);
+                                if (parts.length > 2) {
+                                    // Probablemente hay múltiples msid en la misma línea
+                                    return false; // Eliminar esta línea
+                                }
+                            }
+                        }
+                        return true;
+                    });
+                    
+                    const moreCleanedOffer = {
+                        type: cleanedOffer.type,
+                        sdp: sdpLines.join('\r\n') + '\r\n'
+                    };
+                    
+                    try {
+                        await this.peerConnection.setRemoteDescription(new RTCSessionDescription(moreCleanedOffer));
+                    } catch (finalError) {
+                        throw new Error(`Error al procesar SDP: ${finalError.message}. El SDP puede estar corrupto.`);
+                    }
+                } else {
+                    throw sdpError;
+                }
+            }
             
             // Crear answer
             const answer = await this.peerConnection.createAnswer();
