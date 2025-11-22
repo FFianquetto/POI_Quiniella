@@ -216,17 +216,21 @@ class ChatController extends Controller
             
             // Generar URL pública para el archivo solo si se guardó correctamente
             if ($rutaRelativa) {
-                // En Railway, usar siempre la ruta de fallback para asegurar que funcione
-                $baseUrl = rtrim(config('app.url', env('APP_URL', '')), '/');
-                // Extraer solo el nombre del archivo de la ruta relativa
-                $nombreArchivoFinal = basename($rutaRelativa);
-                // Usar la ruta de fallback que siempre funciona en Railway
-                $mensajeData['archivo_url'] = $baseUrl . '/storage/chat_archivos/' . $nombreArchivoFinal;
+                // Intentar usar Storage::url() primero (más confiable)
+                try {
+                    $mensajeData['archivo_url'] = \Storage::disk('public')->url($rutaRelativa);
+                } catch (\Exception $e) {
+                    // Si falla, usar la ruta de fallback manual
+                    $baseUrl = rtrim(config('app.url', env('APP_URL', '')), '/');
+                    $nombreArchivoFinal = basename($rutaRelativa);
+                    $mensajeData['archivo_url'] = $baseUrl . '/storage/chat_archivos/' . $nombreArchivoFinal;
+                    \Log::warning('Usando URL de fallback para archivo', ['error' => $e->getMessage()]);
+                }
+                
                 $mensajeData['archivo_nombre'] = $archivo->getClientOriginalName();
                 
                 \Log::info('URL generada para archivo', [
                     'ruta_relativa' => $rutaRelativa,
-                    'nombre_archivo' => $nombreArchivoFinal,
                     'archivo_url' => $mensajeData['archivo_url'],
                     'tipo' => $mensajeData['tipo']
                 ]);

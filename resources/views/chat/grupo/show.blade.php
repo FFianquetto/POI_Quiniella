@@ -54,32 +54,112 @@
                     @endif
                 </div>
                                         @elseif($mensaje->tipo === 'video')
-                                            <div class="message-media">
+                                            <div class="message-media video-container">
                                                 @if($mensaje->archivo_url)
-                                                    <video controls class="img-fluid rounded" style="max-width: 300px;">
-                                                        <source src="{{ $mensaje->archivo_url }}" type="video/mp4">
-                                                        <source src="{{ $mensaje->archivo_url }}" type="video/webm">
-                                                        Tu navegador no soporta el elemento video.
-                                                    </video>
-                                                    <small class="d-block mt-1">{{ $mensaje->archivo_nombre }}</small>
+                                                    @php
+                                                        $extension = strtolower(pathinfo($mensaje->archivo_nombre, PATHINFO_EXTENSION));
+                                                        $mimeTypes = [
+                                                            'mp4' => 'video/mp4',
+                                                            'webm' => 'video/webm;codecs=vp8,opus',
+                                                            'ogg' => 'video/ogg',
+                                                            'avi' => 'video/x-msvideo',
+                                                            'mov' => 'video/quicktime',
+                                                            'wmv' => 'video/x-ms-wmv',
+                                                            'flv' => 'video/x-flv'
+                                                        ];
+                                                        if ($extension === 'webm') {
+                                                            $mimeType = stripos($mensaje->archivo_nombre, 'video') !== false 
+                                                                ? 'video/webm;codecs=vp8,opus' 
+                                                                : 'video/webm;codecs=vp8,opus';
+                                                        } else {
+                                                            $mimeType = $mimeTypes[$extension] ?? 'video/mp4';
+                                                        }
+                                                    @endphp
+                                                    <div class="video-wrapper">
+                                                        <video 
+                                                            id="video-{{ $mensaje->id }}" 
+                                                            controls 
+                                                            class="video-player" 
+                                                            preload="metadata" 
+                                                            playsinline 
+                                                            crossorigin="anonymous"
+                                                            data-url="{{ $mensaje->archivo_url }}"
+                                                            onerror="handleVideoError(this, {{ $mensaje->id }})"
+                                                            onloadedmetadata="handleVideoLoaded(this, {{ $mensaje->id }})">
+                                                            <source src="{{ $mensaje->archivo_url }}" type="{{ $mimeType }}">
+                                                            <source src="{{ $mensaje->archivo_url }}" type="video/webm">
+                                                            <source src="{{ $mensaje->archivo_url }}" type="video/webm;codecs=vp8,opus">
+                                                            <source src="{{ $mensaje->archivo_url }}" type="video/mp4">
+                                                            <source src="{{ $mensaje->archivo_url }}" type="video/ogg">
+                                                            Tu navegador no soporta el elemento video.
+                                                        </video>
+                                                        <div id="video-error-{{ $mensaje->id }}" class="video-error-message" style="display: none;">
+                                                            <i class="fa fa-exclamation-triangle"></i>
+                                                            <p>No se pudo cargar el video</p>
+                                                            <a href="{{ $mensaje->archivo_url }}" target="_blank" class="btn btn-sm btn-outline-primary mt-2">
+                                                                <i class="fa fa-download"></i> Descargar video
+                                                            </a>
+                                                        </div>
+                                                    </div>
+                                                    <small class="d-block mt-1 text-muted video-filename">{{ $mensaje->archivo_nombre }}</small>
                                                 @else
                                                     <div class="alert alert-warning">Video no disponible</div>
                                                 @endif
-            </div>
+                                            </div>
                                         @elseif($mensaje->tipo === 'audio')
-                                            <div class="message-media">
+                                            <div class="message-media audio-container">
                                                 @if($mensaje->archivo_url)
-                                                    <audio controls class="w-100">
-                                                        <source src="{{ $mensaje->archivo_url }}" type="audio/mpeg">
-                                                        <source src="{{ $mensaje->archivo_url }}" type="audio/webm">
-                                                        <source src="{{ $mensaje->archivo_url }}" type="audio/ogg">
-                                                        Tu navegador no soporta el elemento audio.
-                                                    </audio>
-                                                    <small class="d-block mt-1">{{ $mensaje->archivo_nombre }}</small>
+                                                    @php
+                                                        $extension = strtolower(pathinfo($mensaje->archivo_nombre, PATHINFO_EXTENSION));
+                                                        $mimeTypes = [
+                                                            'mp3' => 'audio/mpeg',
+                                                            'wav' => 'audio/wav',
+                                                            'ogg' => 'audio/ogg',
+                                                            'webm' => 'audio/webm;codecs=opus',
+                                                            'm4a' => 'audio/mp4',
+                                                            'mp4' => 'audio/mp4',
+                                                            'aac' => 'audio/aac'
+                                                        ];
+                                                        if ($extension === 'webm') {
+                                                            $mimeType = stripos($mensaje->archivo_nombre, 'audio') !== false 
+                                                                ? 'audio/webm;codecs=opus' 
+                                                                : 'audio/webm;codecs=opus';
+                                                        } else {
+                                                            $mimeType = $mimeTypes[$extension] ?? 'audio/mpeg';
+                                                        }
+                                                    @endphp
+                                                    <div class="audio-wrapper">
+                                                        <audio 
+                                                            id="audio-{{ $mensaje->id }}" 
+                                                            controls 
+                                                            class="audio-player" 
+                                                            preload="metadata" 
+                                                            crossorigin="anonymous"
+                                                            data-url="{{ $mensaje->archivo_url }}"
+                                                            onerror="handleAudioError(this, {{ $mensaje->id }})"
+                                                            onloadedmetadata="handleAudioLoaded(this, {{ $mensaje->id }})">
+                                                            <source src="{{ $mensaje->archivo_url }}" type="{{ $mimeType }}">
+                                                            <source src="{{ $mensaje->archivo_url }}" type="audio/webm">
+                                                            <source src="{{ $mensaje->archivo_url }}" type="audio/webm;codecs=opus">
+                                                            <source src="{{ $mensaje->archivo_url }}" type="audio/mpeg">
+                                                            <source src="{{ $mensaje->archivo_url }}" type="audio/ogg">
+                                                            <source src="{{ $mensaje->archivo_url }}" type="audio/wav">
+                                                            <source src="{{ $mensaje->archivo_url }}" type="audio/mp4">
+                                                            Tu navegador no soporta el elemento audio.
+                                                        </audio>
+                                                        <div id="audio-error-{{ $mensaje->id }}" class="audio-error-message" style="display: none;">
+                                                            <i class="fa fa-exclamation-triangle"></i>
+                                                            <p>No se pudo cargar el audio</p>
+                                                            <a href="{{ $mensaje->archivo_url }}" target="_blank" class="btn btn-sm btn-outline-primary mt-2">
+                                                                <i class="fa fa-download"></i> Descargar audio
+                                                            </a>
+                                                        </div>
+                                                    </div>
+                                                    <small class="d-block mt-1 text-muted audio-filename">{{ $mensaje->archivo_nombre }}</small>
                                                 @else
                                                     <div class="alert alert-warning">Audio no disponible</div>
                                                 @endif
-                </div>
+                                            </div>
                                         @elseif($mensaje->tipo === 'archivo')
                                             <div class="message-file">
                                                 @if($mensaje->archivo_url)
@@ -492,9 +572,118 @@
     box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
 
-.message-media audio {
-    border-radius: 20px;
-    background: rgba(255,255,255,0.1);
+/* Contenedores de audio y video */
+.audio-container,
+.video-container {
+    width: 100%;
+    max-width: 100%;
+}
+
+.audio-wrapper,
+.video-wrapper {
+    position: relative;
+    width: 100%;
+    border-radius: 8px;
+    overflow: hidden;
+    background: rgba(0, 0, 0, 0.05);
+}
+
+.message-own .audio-wrapper,
+.message-own .video-wrapper {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.message-other .audio-wrapper,
+.message-other .video-wrapper {
+    background: rgba(0, 0, 0, 0.05);
+}
+
+/* Reproductor de audio mejorado */
+.message-media .audio-player {
+    width: 100%;
+    min-width: 250px;
+    max-width: 100%;
+    height: 45px;
+    border-radius: 8px;
+    outline: none;
+    background: transparent;
+}
+
+.message-own .message-media .audio-player {
+    filter: brightness(1.1);
+}
+
+.message-other .message-media .audio-player {
+    filter: brightness(0.95);
+}
+
+/* Reproductor de video mejorado */
+.message-media .video-player {
+    width: 100%;
+    max-width: 300px;
+    max-height: 400px;
+    border-radius: 8px;
+    background: #000;
+    outline: none;
+    display: block;
+    object-fit: contain;
+}
+
+/* Mensajes de error */
+.audio-error-message,
+.video-error-message {
+    padding: 20px;
+    text-align: center;
+    background: rgba(255, 193, 7, 0.1);
+    border: 1px solid rgba(255, 193, 7, 0.3);
+    border-radius: 8px;
+    color: #856404;
+}
+
+.audio-error-message i,
+.video-error-message i {
+    font-size: 2rem;
+    margin-bottom: 10px;
+    display: block;
+}
+
+.audio-error-message p,
+.video-error-message p {
+    margin: 0;
+    font-size: 0.9rem;
+}
+
+/* Nombres de archivo */
+.audio-filename,
+.video-filename {
+    font-size: 0.75rem;
+    word-break: break-word;
+    margin-top: 8px;
+    opacity: 0.8;
+}
+
+/* Controles de video personalizados */
+.message-media video::-webkit-media-controls-panel {
+    background-color: rgba(0, 0, 0, 0.6);
+}
+
+.message-media video::-webkit-media-controls-play-button {
+    background-color: rgba(255, 255, 255, 0.9);
+    border-radius: 50%;
+}
+
+.message-media video::-webkit-media-controls-timeline {
+    background-color: rgba(255, 255, 255, 0.3);
+    border-radius: 2px;
+}
+
+/* Controles de audio personalizados */
+.message-media audio::-webkit-media-controls-panel {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.message-own .message-media audio::-webkit-media-controls-panel {
+    background-color: rgba(255, 255, 255, 0.2);
 }
 
 #controles-grabacion {
@@ -902,6 +1091,97 @@ document.addEventListener('DOMContentLoaded', function() {
             initializeVideoCall();
         }
     }
+    
+    // Funciones para manejar errores de carga de audio y video
+    window.handleAudioError = function(audioElement, messageId) {
+        console.error('Error al cargar audio:', {
+            messageId: messageId,
+            url: audioElement.dataset.url,
+            error: audioElement.error
+        });
+        
+        const errorDiv = document.getElementById('audio-error-' + messageId);
+        const audioWrapper = audioElement.closest('.audio-wrapper');
+        
+        if (errorDiv && audioWrapper) {
+            audioElement.style.display = 'none';
+            errorDiv.style.display = 'block';
+        }
+    };
+    
+    window.handleAudioLoaded = function(audioElement, messageId) {
+        console.log('Audio cargado correctamente:', {
+            messageId: messageId,
+            duration: audioElement.duration,
+            url: audioElement.dataset.url
+        });
+        
+        const errorDiv = document.getElementById('audio-error-' + messageId);
+        if (errorDiv) {
+            errorDiv.style.display = 'none';
+        }
+        audioElement.style.display = 'block';
+    };
+    
+    window.handleVideoError = function(videoElement, messageId) {
+        console.error('Error al cargar video:', {
+            messageId: messageId,
+            url: videoElement.dataset.url,
+            error: videoElement.error
+        });
+        
+        const errorDiv = document.getElementById('video-error-' + messageId);
+        const videoWrapper = videoElement.closest('.video-wrapper');
+        
+        if (errorDiv && videoWrapper) {
+            videoElement.style.display = 'none';
+            errorDiv.style.display = 'block';
+        }
+    };
+    
+    window.handleVideoLoaded = function(videoElement, messageId) {
+        console.log('Video cargado correctamente:', {
+            messageId: messageId,
+            duration: videoElement.duration,
+            videoWidth: videoElement.videoWidth,
+            videoHeight: videoElement.videoHeight,
+            url: videoElement.dataset.url
+        });
+        
+        const errorDiv = document.getElementById('video-error-' + messageId);
+        if (errorDiv) {
+            errorDiv.style.display = 'none';
+        }
+        videoElement.style.display = 'block';
+    };
+    
+    // Verificar que todos los reproductores multimedia se carguen correctamente
+    const audioPlayers = document.querySelectorAll('.audio-player');
+    const videoPlayers = document.querySelectorAll('.video-player');
+    
+    audioPlayers.forEach(function(audio) {
+        audio.addEventListener('error', function() {
+            const messageId = audio.id.replace('audio-', '');
+            handleAudioError(audio, messageId);
+        });
+        
+        audio.addEventListener('loadedmetadata', function() {
+            const messageId = audio.id.replace('audio-', '');
+            handleAudioLoaded(audio, messageId);
+        });
+    });
+    
+    videoPlayers.forEach(function(video) {
+        video.addEventListener('error', function() {
+            const messageId = video.id.replace('video-', '');
+            handleVideoError(video, messageId);
+        });
+        
+        video.addEventListener('loadedmetadata', function() {
+            const messageId = video.id.replace('video-', '');
+            handleVideoLoaded(video, messageId);
+        });
+    });
 });
 </script>
 @endsection
