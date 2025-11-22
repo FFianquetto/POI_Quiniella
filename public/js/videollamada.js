@@ -381,18 +381,75 @@ class VideoCall {
             // Agregar tracks locales
             this.localStream.getTracks().forEach(track => {
                 this.peerConnection.addTrack(track, this.localStream);
-                console.log('Track local agregado:', track.kind, track.id);
+                console.log('Track local agregado:', {
+                    kind: track.kind,
+                    id: track.id,
+                    enabled: track.enabled,
+                    readyState: track.readyState,
+                    muted: track.muted
+                });
+                
+                // Agregar listeners para detectar cuando el track empiece a transmitir
+                track.onended = () => {
+                    console.warn('Track local terminado:', track.kind);
+                };
+                
+                track.onmute = () => {
+                    console.warn('Track local silenciado:', track.kind);
+                };
+                
+                track.onunmute = () => {
+                    console.log('Track local activado:', track.kind);
+                };
             });
             
             // Configurar handlers
             this.setupPeerConnectionHandlers();
             
-            // Crear offer
+            // Crear offer con opciones para asegurar video y audio
             this.isInitiator = true;
             this.callId = 'call_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
             
-            const offer = await this.peerConnection.createOffer();
+            // Verificar que los tracks estén listos antes de crear el offer
+            const videoTracks = this.localStream.getVideoTracks();
+            const audioTracks = this.localStream.getAudioTracks();
+            console.log('Tracks locales antes de crear offer:', {
+                video: videoTracks.length,
+                audio: audioTracks.length,
+                videoReady: videoTracks.length > 0 ? videoTracks[0].readyState : 'none',
+                audioReady: audioTracks.length > 0 ? audioTracks[0].readyState : 'none'
+            });
+            
+            // Crear offer con opciones para asegurar que incluya video y audio
+            const offer = await this.peerConnection.createOffer({
+                offerToReceiveAudio: true,
+                offerToReceiveVideo: true
+            });
+            
+            console.log('Offer creado:', {
+                type: offer.type,
+                sdpLength: offer.sdp.length,
+                hasVideo: offer.sdp.includes('m=video'),
+                hasAudio: offer.sdp.includes('m=audio')
+            });
+            
             await this.peerConnection.setLocalDescription(offer);
+            
+            // Verificar transceivers después de establecer la descripción local
+            const transceivers = this.peerConnection.getTransceivers();
+            console.log('Transceivers después de setLocalDescription (offer):', transceivers.length);
+            transceivers.forEach((transceiver, index) => {
+                console.log(`Transceiver ${index}:`, {
+                    kind: transceiver.receiver.track?.kind || transceiver.sender.track?.kind || 'none',
+                    direction: transceiver.direction,
+                    currentDirection: transceiver.currentDirection,
+                    senderTrack: transceiver.sender.track ? {
+                        kind: transceiver.sender.track.kind,
+                        enabled: transceiver.sender.track.enabled,
+                        readyState: transceiver.sender.track.readyState
+                    } : 'none'
+                });
+            });
             
             // Enviar offer
             await this.enviarSeñalizacion('offer', {
@@ -796,6 +853,27 @@ class VideoCall {
                     const cleanedAnswer = this.limpiarSessionDescription(datos);
                     try {
                         await this.peerConnection.setRemoteDescription(new RTCSessionDescription(cleanedAnswer));
+                        
+                        // Verificar transceivers después de procesar el answer
+                        const transceivers = this.peerConnection.getTransceivers();
+                        console.log('Transceivers después de procesar answer:', transceivers.length);
+                        transceivers.forEach((transceiver, index) => {
+                            console.log(`Transceiver ${index} (answer):`, {
+                                kind: transceiver.receiver.track?.kind || transceiver.sender.track?.kind || 'none',
+                                direction: transceiver.direction,
+                                currentDirection: transceiver.currentDirection,
+                                senderTrack: transceiver.sender.track ? {
+                                    kind: transceiver.sender.track.kind,
+                                    enabled: transceiver.sender.track.enabled,
+                                    readyState: transceiver.sender.track.readyState
+                                } : 'none',
+                                receiverTrack: transceiver.receiver.track ? {
+                                    kind: transceiver.receiver.track.kind,
+                                    enabled: transceiver.receiver.track.enabled,
+                                    readyState: transceiver.receiver.track.readyState
+                                } : 'none'
+                            });
+                        });
                     } catch (sdpError) {
                         console.error('Error al procesar SDP de answer:', sdpError);
                         // Intentar limpieza más agresiva
@@ -821,6 +899,10 @@ class VideoCall {
                             };
                             
                             await this.peerConnection.setRemoteDescription(new RTCSessionDescription(moreCleanedAnswer));
+                            
+                            // Verificar transceivers después de la limpieza agresiva
+                            const transceivers = this.peerConnection.getTransceivers();
+                            console.log('Transceivers después de limpieza agresiva:', transceivers.length);
                         } else {
                             throw sdpError;
                         }
@@ -1101,7 +1183,26 @@ class VideoCall {
             // Agregar tracks locales
             this.localStream.getTracks().forEach(track => {
                 this.peerConnection.addTrack(track, this.localStream);
-                console.log('Track local agregado:', track.kind, track.id);
+                console.log('Track local agregado (answer):', {
+                    kind: track.kind,
+                    id: track.id,
+                    enabled: track.enabled,
+                    readyState: track.readyState,
+                    muted: track.muted
+                });
+                
+                // Agregar listeners para detectar cuando el track empiece a transmitir
+                track.onended = () => {
+                    console.warn('Track local terminado:', track.kind);
+                };
+                
+                track.onmute = () => {
+                    console.warn('Track local silenciado:', track.kind);
+                };
+                
+                track.onunmute = () => {
+                    console.log('Track local activado:', track.kind);
+                };
             });
             
             // Configurar handlers
@@ -1178,8 +1279,37 @@ class VideoCall {
                 }
             }
             
+            // Verificar transceivers después de establecer la descripción remota
+            const transceivers = this.peerConnection.getTransceivers();
+            console.log('Transceivers después de setRemoteDescription:', transceivers.length);
+            transceivers.forEach((transceiver, index) => {
+                console.log(`Transceiver ${index}:`, {
+                    kind: transceiver.receiver.track?.kind || 'none',
+                    direction: transceiver.direction,
+                    currentDirection: transceiver.currentDirection
+                });
+            });
+            
+            // Verificar que los tracks locales estén listos antes de crear el answer
+            const videoTracks = this.localStream.getVideoTracks();
+            const audioTracks = this.localStream.getAudioTracks();
+            console.log('Tracks locales antes de crear answer:', {
+                video: videoTracks.length,
+                audio: audioTracks.length,
+                videoReady: videoTracks.length > 0 ? videoTracks[0].readyState : 'none',
+                audioReady: audioTracks.length > 0 ? audioTracks[0].readyState : 'none'
+            });
+            
             // Crear answer
             const answer = await this.peerConnection.createAnswer();
+            
+            console.log('Answer creado:', {
+                type: answer.type,
+                sdpLength: answer.sdp.length,
+                hasVideo: answer.sdp.includes('m=video'),
+                hasAudio: answer.sdp.includes('m=audio')
+            });
+            
             await this.peerConnection.setLocalDescription(answer);
             
             // Enviar answer
