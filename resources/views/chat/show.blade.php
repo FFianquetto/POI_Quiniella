@@ -1016,19 +1016,41 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             const btnVideollamada = document.getElementById('btn-videollamada');
             const modalVideollamada = document.getElementById('modalVideollamada');
+            const modalLlamadaEntrante = document.getElementById('modalLlamadaEntrante');
             
-            if (!btnVideollamada || !modalVideollamada) {
+            console.log('Inicializando videollamada...', {
+                btnVideollamada: !!btnVideollamada,
+                modalVideollamada: !!modalVideollamada,
+                modalLlamadaEntrante: !!modalLlamadaEntrante,
+                VideoCall: typeof VideoCall
+            });
+            
+            if (!btnVideollamada) {
+                console.error('Botón de videollamada no encontrado');
+                return;
+            }
+            
+            if (!modalVideollamada) {
+                console.error('Modal de videollamada no encontrado');
                 return;
             }
             
             if (typeof VideoCall === 'undefined') {
+                console.error('Clase VideoCall no está definida');
                 return;
             }
             
-            videoCall = new VideoCall({{ $chat->id }}, {{ $usuario->id ?? 'null' }});
+            const chatId = {{ $chat->id }};
+            const usuarioId = {{ $usuario->id ?? 'null' }};
+            
+            console.log('Creando instancia de VideoCall:', { chatId, usuarioId });
+            
+            videoCall = new VideoCall(chatId, usuarioId);
+            
+            console.log('VideoCall inicializado correctamente');
             
         } catch (error) {
-            return;
+            console.error('Error al inicializar VideoCall:', error);
         }
     }
     
@@ -1042,16 +1064,19 @@ document.addEventListener('DOMContentLoaded', function() {
     
     function loadVideoCallScript() {
         if (typeof VideoCall === 'undefined') {
+            console.log('Cargando script de videollamada...');
             const script = document.createElement('script');
             script.src = '/js/videollamada.js';
             script.onload = function() {
+                console.log('Script de videollamada cargado');
                 setTimeout(initializeVideoCall, 100);
             };
             script.onerror = function() {
-                return;
+                console.error('Error al cargar el script de videollamada');
             };
             document.head.appendChild(script);
         } else {
+            console.log('VideoCall ya está disponible');
             initializeVideoCall();
         }
     }

@@ -1,40 +1,45 @@
+/**
+ * Sistema de Videollamadas WebRTC
+ * Implementación simplificada y moderna
+ */
 class VideoCall {
     constructor(chatId, usuarioId) {
         this.chatId = chatId;
         this.usuarioId = usuarioId;
+        
+        // Estado de la conexión
         this.peerConnection = null;
         this.localStream = null;
         this.remoteStream = null;
         this.isInCall = false;
-        this.callStartTime = null;
-        this.callTimer = null;
+        this.isInitiator = false;
+        this.callId = null;
+        
+        // Controles
         this.isAudioMuted = false;
         this.isVideoMuted = false;
-        this.callId = null;
-        this.isInitiator = false;
-        this.signalingInterval = null;
-        this.signalingEventSource = null;
-        this.incomingCallOffer = null;
-        this.callNotificationAudio = null;
-        this.isRinging = false;
         
-        // Configuración mejorada de ICE servers para producción
-        // Incluye múltiples STUN servers y TURN servers públicos
+        // Timer
+        this.callStartTime = null;
+        this.callTimer = null;
+        
+        // Señalización
+        this.signalingInterval = null;
+        this.lastMessageId = 0;
+        
+        // Configuración WebRTC optimizada para producción
         this.configuration = {
             iceServers: [
-                // STUN servers de Google (gratuitos)
+                // STUN servers de Google (gratuitos y confiables)
                 { urls: 'stun:stun.l.google.com:19302' },
                 { urls: 'stun:stun1.l.google.com:19302' },
                 { urls: 'stun:stun2.l.google.com:19302' },
                 { urls: 'stun:stun3.l.google.com:19302' },
                 { urls: 'stun:stun4.l.google.com:19302' },
-                // STUN servers alternativos
+                // STUN alternativos
                 { urls: 'stun:stun.stunprotocol.org:3478' },
-                { urls: 'stun:stun.voiparound.com' },
-                { urls: 'stun:stun.voipbuster.com' },
-                { urls: 'stun:stun.voipstunt.com' },
                 // TURN servers públicos (gratuitos, pueden tener limitaciones)
-                // Nota: Para producción real, se recomienda usar TURN servers propios
+                // Nota: Para producción real, considera usar TURN servers propios
                 {
                     urls: 'turn:openrelay.metered.ca:80',
                     username: 'openrelayproject',
@@ -51,15 +56,12 @@ class VideoCall {
                     credential: 'openrelayproject'
                 }
             ],
-            iceCandidatePoolSize: 10
+            iceCandidatePoolSize: 10,
+            iceTransportPolicy: 'all' // Usar tanto UDP como TCP
         };
         
         this.initializeElements();
         this.bindEvents();
-        this.initializeCallNotification();
-        
-        // NO iniciar escucha automáticamente para evitar interferencias con el envío de mensajes
-        // El polling se iniciará solo cuando sea necesario (al iniciar videollamada o al aceptar llamada entrante)
     }
     
     initializeElements() {
@@ -74,362 +76,43 @@ class VideoCall {
         this.btnCerrarVideollamada = document.getElementById('btn-cerrar-videollamada');
         this.tiempoVideollamada = document.getElementById('tiempo-videollamada');
         
-        // Elementos de notificación de llamada entrante
+        // Modal de llamada entrante
         this.modalLlamadaEntrante = document.getElementById('modalLlamadaEntrante');
         this.btnAceptarLlamada = document.getElementById('btn-aceptar-llamada');
         this.btnRechazarLlamada = document.getElementById('btn-rechazar-llamada');
         this.nombreLlamante = document.getElementById('nombre-llamante');
-    }
-    
-    initializeCallNotification() {
-        // Crear audio para notificación de llamada (usando Web Audio API)
-        try {
-            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            this.callNotificationAudio = audioContext;
-        } catch (e) {
-            console.warn('No se pudo crear AudioContext para notificaciones');
+        
+        // Verificar que los elementos críticos existan
+        if (!this.btnVideollamada) {
+            console.warn('Botón de videollamada no encontrado');
         }
-    }
-    
-    playCallSound() {
-        if (!this.callNotificationAudio) return;
-        
-        try {
-            const oscillator = this.callNotificationAudio.createOscillator();
-            const gainNode = this.callNotificationAudio.createGain();
-            
-            oscillator.connect(gainNode);
-            gainNode.connect(this.callNotificationAudio.destination);
-            
-            oscillator.frequency.value = 800;
-            oscillator.type = 'sine';
-            
-            gainNode.gain.setValueAtTime(0.3, this.callNotificationAudio.currentTime);
-            gainNode.gain.exponentialRampToValueAtTime(0.01, this.callNotificationAudio.currentTime + 0.5);
-            
-            oscillator.start(this.callNotificationAudio.currentTime);
-            oscillator.stop(this.callNotificationAudio.currentTime + 0.5);
-            
-            // Repetir cada segundo
-            if (this.isRinging) {
-                setTimeout(() => this.playCallSound(), 1000);
-            }
-        } catch (e) {
-            console.warn('Error al reproducir sonido de llamada:', e);
+        if (!this.modalVideollamada) {
+            console.warn('Modal de videollamada no encontrado');
         }
-    }
-    
-    stopCallSound() {
-        this.isRinging = false;
-    }
-    
-    showIncomingCallNotification(offerData) {
-        // Limpiar el SDP del offer antes de guardarlo
-        // El offerData puede venir como RTCSessionDescription o como objeto {type, sdp}
-        let cleanedOffer = offerData;
-        
-        if (offerData) {
-            if (offerData.sdp && typeof offerData.sdp === 'string') {
-                // Si tiene sdp como string, limpiarlo
-                cleanedOffer = {
-                    type: offerData.type || 'offer',
-                    sdp: this.cleanSDP(offerData.sdp)
-                };
-            } else if (offerData.type && offerData.sdp) {
-                // Si ya tiene type y sdp, limpiar el sdp
-                cleanedOffer = {
-                    type: offerData.type,
-                    sdp: this.cleanSDP(offerData.sdp)
-                };
-            } else {
-                // Si es un RTCSessionDescription, convertir a objeto y limpiar
-                try {
-                    cleanedOffer = {
-                        type: offerData.type,
-                        sdp: this.cleanSDP(offerData.sdp || '')
-                    };
-                } catch (e) {
-                    console.error('Error al procesar offerData:', e);
-                    cleanedOffer = offerData;
-                }
-            }
-        }
-        
-        this.incomingCallOffer = cleanedOffer;
-        this.isRinging = true;
-        
-        // Mostrar modal de notificación
-        if (this.modalLlamadaEntrante) {
-            if (typeof bootstrap !== 'undefined') {
-                const modal = new bootstrap.Modal(this.modalLlamadaEntrante, {
-                    backdrop: 'static',
-                    keyboard: false
-                });
-                modal.show();
-            } else {
-                this.modalLlamadaEntrante.style.display = 'block';
-                this.modalLlamadaEntrante.classList.add('show');
-            }
-        }
-        
-        // Reproducir sonido de llamada
-        this.playCallSound();
-        
-        // Obtener nombre del llamante (si está disponible)
-        if (this.nombreLlamante) {
-            this.nombreLlamante.textContent = 'Llamada entrante...';
-        }
-    }
-    
-    async acceptIncomingCall() {
-        this.stopCallSound();
-        
-        if (!this.incomingCallOffer) {
-            console.error('No hay oferta de llamada para aceptar');
-            return;
-        }
-        
-        // Cerrar modal de notificación
-        if (this.modalLlamadaEntrante) {
-            if (typeof bootstrap !== 'undefined') {
-                const modal = bootstrap.Modal.getInstance(this.modalLlamadaEntrante);
-                if (modal) modal.hide();
-            } else {
-                this.modalLlamadaEntrante.style.display = 'none';
-                this.modalLlamadaEntrante.classList.remove('show');
-            }
-        }
-        
-        // Iniciar la videollamada como receptor
-        await this.answerIncomingCall(this.incomingCallOffer);
-    }
-    
-    async rejectIncomingCall() {
-        this.stopCallSound();
-        
-        // Enviar mensaje de rechazo al otro usuario
-        if (this.incomingCallOffer) {
-            await this.sendSignalingMessage('call-rejected', {
-                reason: 'rejected',
-                timestamp: new Date().toISOString()
-            });
-            
-            // Registrar llamada perdida en el chat
-            await this.registrarLlamadaPerdida();
-        }
-        
-        this.incomingCallOffer = null;
-        
-        // Cerrar modal de notificación
-        if (this.modalLlamadaEntrante) {
-            if (typeof bootstrap !== 'undefined') {
-                const modal = bootstrap.Modal.getInstance(this.modalLlamadaEntrante);
-                if (modal) modal.hide();
-            } else {
-                this.modalLlamadaEntrante.style.display = 'none';
-                this.modalLlamadaEntrante.classList.remove('show');
-            }
-        }
-    }
-    
-    async registrarLlamadaPerdida() {
-        try {
-            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-            if (!csrfToken) {
-                console.error('No se encontró el token CSRF');
-                return;
-            }
-            
-            const response = await fetch(`/chats/${this.chatId}/videollamada/perdida`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken
-                }
-            });
-            
-            if (!response.ok) {
-                console.error('Error al registrar llamada perdida:', response.statusText);
-                return;
-            }
-            
-            const result = await response.json();
-            if (result.success) {
-                console.log('Llamada perdida registrada en el chat');
-                // Recargar la página para mostrar el nuevo mensaje
-                // O mejor aún, agregar el mensaje dinámicamente al chat
-                setTimeout(() => {
-                    window.location.reload();
-                }, 500);
-            }
-        } catch (error) {
-            console.error('Error al registrar llamada perdida:', error);
-        }
-    }
-    
-    async answerIncomingCall(offerData) {
-        try {
-            // Validar HTTPS
-            if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-                alert('Las videollamadas requieren HTTPS en producción.');
-                return;
-            }
-            
-            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                throw new Error('WebRTC no está soportado en este navegador');
-            }
-            
-            // Mostrar modal de videollamada
-            if (typeof bootstrap !== 'undefined' && this.modalVideollamada) {
-                const modal = new bootstrap.Modal(this.modalVideollamada, {
-                    backdrop: false,
-                    keyboard: true
-                });
-                modal.show();
-            } else {
-                this.showModalManually();
-            }
-            
-            // Obtener acceso a cámara y micrófono
-            this.localStream = await navigator.mediaDevices.getUserMedia({
-                video: {
-                    width: { ideal: 1280 },
-                    height: { ideal: 720 }
-                },
-                audio: {
-                    echoCancellation: true,
-                    noiseSuppression: true,
-                    autoGainControl: true
-                }
-            });
-            
-            if (this.videoLocal) {
-                this.videoLocal.srcObject = this.localStream;
-            }
-            
-            // Crear conexión peer
-            this.peerConnection = new RTCPeerConnection(this.configuration);
-            
-            // Agregar tracks de forma más controlada
-            // Verificar que los tracks estén activos antes de agregarlos
-            this.localStream.getTracks().forEach(track => {
-                if (track.readyState === 'live' && track.enabled) {
-                    this.peerConnection.addTrack(track, this.localStream);
-                    console.log(`Track agregado: ${track.kind} - ${track.id}`);
-                } else {
-                    console.warn(`Track ${track.kind} no está listo, saltando:`, track.readyState);
-                }
-            });
-            
-            this.setupPeerConnectionHandlers();
-            
-            // Procesar el offer recibido - asegurar formato correcto
-            let offerDataFormatted;
-            
-            // Si offerData ya tiene type y sdp, usarlo directamente
-            if (offerData.type && offerData.sdp) {
-                offerDataFormatted = {
-                    type: offerData.type,
-                    sdp: this.cleanSDP(offerData.sdp)
-                };
-            } else if (typeof offerData === 'string') {
-                // Si es un string, intentar parsearlo
-                try {
-                    const parsed = JSON.parse(offerData);
-                    offerDataFormatted = {
-                        type: parsed.type,
-                        sdp: this.cleanSDP(parsed.sdp)
-                    };
-                } catch (e) {
-                    throw new Error('El formato del offer es inválido');
-                }
-            } else {
-                // Intentar extraer type y sdp del objeto
-                offerDataFormatted = {
-                    type: offerData.type || 'offer',
-                    sdp: this.cleanSDP(offerData.sdp || '')
-                };
-            }
-            
-            if (!offerDataFormatted.sdp || typeof offerDataFormatted.sdp !== 'string' || offerDataFormatted.sdp.trim().length === 0) {
-                console.error('Offer recibido:', offerData);
-                throw new Error('El SDP del offer está vacío o inválido');
-            }
-            
-            if (!offerDataFormatted.type || !['offer', 'answer', 'pranswer', 'rollback'].includes(offerDataFormatted.type)) {
-                throw new Error('El tipo del offer es inválido');
-            }
-            
-            console.log('Procesando offer con tipo:', offerDataFormatted.type, 'SDP length:', offerDataFormatted.sdp.length);
-            
-            // LIMPIAR el SDP justo antes de usarlo (por si acaso no se limpió antes)
-            const originalSdpLength = offerDataFormatted.sdp.length;
-            offerDataFormatted.sdp = this.cleanSDP(offerDataFormatted.sdp);
-            const cleanedSdpLength = offerDataFormatted.sdp.length;
-            
-            if (originalSdpLength !== cleanedSdpLength) {
-                console.log(`SDP limpiado antes de procesar: ${originalSdpLength} -> ${cleanedSdpLength} caracteres`);
-            }
-            
-            // Verificar que no queden líneas problemáticas
-            const sdpLines = offerDataFormatted.sdp.split('\n');
-            const remainingProblematic = sdpLines.filter(line => {
-                const trimmed = line.trim();
-                return trimmed.startsWith('a=msid:') || 
-                       trimmed.startsWith('a=cname:') || 
-                       trimmed.startsWith('a=ssrc:') || 
-                       trimmed.startsWith('a=ssrc-group:') ||
-                       trimmed.startsWith('a=label:');
-            });
-            
-            if (remainingProblematic.length > 0) {
-                console.error('ADVERTENCIA: Aún quedan líneas problemáticas después de limpiar:', remainingProblematic);
-                // Limpiar nuevamente si quedan líneas problemáticas
-                offerDataFormatted.sdp = this.cleanSDP(offerDataFormatted.sdp);
-            }
-            
-            try {
-                await this.peerConnection.setRemoteDescription(new RTCSessionDescription(offerDataFormatted));
-            } catch (error) {
-                console.error('Error al establecer remote description:', error);
-                console.error('SDP recibido (primeras 500 chars):', offerDataFormatted.sdp.substring(0, 500));
-                console.error('Líneas problemáticas que aún quedan:', remainingProblematic);
-                throw error;
-            }
-            
-            // Crear y enviar answer
-            const answer = await this.peerConnection.createAnswer();
-            
-            // Limpiar el SDP del answer ANTES de establecerlo como local description
-            // Esto evita que se incluyan códecs problemáticos en el SDP
-            if (answer.sdp) {
-                answer.sdp = this.cleanSDP(answer.sdp);
-            }
-            
-            await this.peerConnection.setLocalDescription(answer);
-            
-            // Limpiar nuevamente antes de enviar (por si acaso)
-            const cleanedAnswer = {
-                type: answer.type,
-                sdp: this.cleanSDP(answer.sdp)
-            };
-            
-            await this.sendSignalingMessage('answer', cleanedAnswer);
-            
-            this.startSignalingPolling();
-            
-        } catch (error) {
-            console.error('Error al aceptar llamada:', error);
-            alert('Error al aceptar la llamada: ' + error.message);
-            this.endCall();
+        if (!this.modalLlamadaEntrante) {
+            console.warn('Modal de llamada entrante no encontrado');
         }
     }
     
     bindEvents() {
+        // Botón iniciar videollamada
         if (this.btnVideollamada) {
-            this.btnVideollamada.addEventListener('click', () => this.iniciarVideollamada());
+            // Remover listeners anteriores si existen
+            const newBtn = this.btnVideollamada.cloneNode(true);
+            this.btnVideollamada.parentNode.replaceChild(newBtn, this.btnVideollamada);
+            this.btnVideollamada = newBtn;
+            
+            this.btnVideollamada.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('Botón videollamada clickeado');
+                this.iniciarVideollamada();
+            });
+        } else {
+            console.error('No se pudo vincular el botón de videollamada');
         }
         
+        // Botones de control
         if (this.btnToggleAudio) {
             this.btnToggleAudio.addEventListener('click', (e) => {
                 e.preventDefault();
@@ -462,47 +145,93 @@ class VideoCall {
             });
         }
         
+        // Botones de llamada entrante
         if (this.btnAceptarLlamada) {
-            this.btnAceptarLlamada.addEventListener('click', () => this.acceptIncomingCall());
+            // Remover listeners anteriores si existen
+            const newAceptar = this.btnAceptarLlamada.cloneNode(true);
+            this.btnAceptarLlamada.parentNode.replaceChild(newAceptar, this.btnAceptarLlamada);
+            this.btnAceptarLlamada = newAceptar;
+            
+            this.btnAceptarLlamada.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('Botón aceptar llamada clickeado');
+                this.aceptarLlamada();
+            });
+        } else {
+            console.error('No se pudo vincular el botón de aceptar llamada');
         }
         
         if (this.btnRechazarLlamada) {
-            this.btnRechazarLlamada.addEventListener('click', () => this.rejectIncomingCall());
+            // Remover listeners anteriores si existen
+            const newRechazar = this.btnRechazarLlamada.cloneNode(true);
+            this.btnRechazarLlamada.parentNode.replaceChild(newRechazar, this.btnRechazarLlamada);
+            this.btnRechazarLlamada = newRechazar;
+            
+            this.btnRechazarLlamada.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('Botón rechazar llamada clickeado');
+                this.rechazarLlamada();
+            });
+        } else {
+            console.error('No se pudo vincular el botón de rechazar llamada');
         }
         
+        // Eventos del modal
         if (this.modalVideollamada) {
-            this.modalVideollamada.addEventListener('hidden.bs.modal', () => this.endCall());
-            this.modalVideollamada.addEventListener('hide.bs.modal', () => this.endCall());
+            this.modalVideollamada.addEventListener('hidden.bs.modal', () => {
+                if (this.isInCall) {
+                    this.endCall();
+                }
+            });
         }
     }
     
+    /**
+     * Iniciar una videollamada
+     */
     async iniciarVideollamada() {
         try {
-            // Validar que estamos en HTTPS en producción
-            if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+            // Validar HTTPS en producción (requerido para WebRTC)
+            const isLocalhost = window.location.hostname === 'localhost' || 
+                               window.location.hostname === '127.0.0.1' ||
+                               window.location.hostname === '0.0.0.0';
+            
+            if (window.location.protocol !== 'https:' && !isLocalhost) {
                 alert('Las videollamadas requieren HTTPS en producción. Por favor, accede al sitio usando HTTPS.');
                 return;
             }
             
+            // Validar soporte WebRTC
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                throw new Error('WebRTC no está soportado en este navegador. Por favor, usa un navegador moderno como Chrome, Firefox, Edge o Safari.');
+                alert('Tu navegador no soporta videollamadas. Por favor, usa Chrome, Firefox, Edge o Safari (versiones recientes).');
+                return;
             }
             
-            if (typeof bootstrap !== 'undefined' && this.modalVideollamada) {
-                try {
-                    const modal = new bootstrap.Modal(this.modalVideollamada, {
-                        backdrop: false,
-                        keyboard: true
-                    });
-                    modal.show();
-                } catch (bootstrapError) {
-                    console.error('Error al mostrar modal con Bootstrap:', bootstrapError);
-                    this.showModalManually();
-                }
-            } else {
-                this.showModalManually();
+            // Validar RTCPeerConnection
+            if (!window.RTCPeerConnection) {
+                alert('WebRTC no está disponible en tu navegador. Por favor, actualiza tu navegador.');
+                return;
             }
             
+            // Validar que tenemos chatId y usuarioId
+            if (!this.chatId || !this.usuarioId) {
+                console.error('Faltan chatId o usuarioId:', { chatId: this.chatId, usuarioId: this.usuarioId });
+                alert('Error: No se pudo identificar el chat o usuario. Por favor, recarga la página.');
+                return;
+            }
+            
+            // Si ya hay una llamada activa, no iniciar otra
+            if (this.isInCall || this.peerConnection) {
+                console.warn('Ya hay una llamada activa');
+                return;
+            }
+            
+            // Mostrar modal
+            this.mostrarModal();
+            
+            // Obtener acceso a cámara y micrófono
             this.localStream = await navigator.mediaDevices.getUserMedia({
                 video: {
                     width: { ideal: 1280 },
@@ -515,692 +244,211 @@ class VideoCall {
                 }
             });
             
+            // Mostrar video local
             if (this.videoLocal) {
                 this.videoLocal.srcObject = this.localStream;
             }
             
-            if (this.estadoVideollamada) {
-                this.estadoVideollamada.style.display = 'block';
-                this.estadoVideollamada.innerHTML = `
-                    <i class="fa fa-spinner fa-spin fa-3x mb-3"></i>
-                    <h5>Iniciando videollamada...</h5>
-                    <p>Esperando respuesta del otro usuario</p>
-                `;
-            }
-            
+            // Crear conexión peer
             this.peerConnection = new RTCPeerConnection(this.configuration);
             
-            // Agregar tracks de forma más controlada
-            // Verificar que los tracks estén activos antes de agregarlos
+            // Agregar tracks locales
             this.localStream.getTracks().forEach(track => {
-                if (track.readyState === 'live' && track.enabled) {
-                    this.peerConnection.addTrack(track, this.localStream);
-                    console.log(`Track agregado: ${track.kind} - ${track.id}`);
-                } else {
-                    console.warn(`Track ${track.kind} no está listo, saltando:`, track.readyState);
-                }
+                this.peerConnection.addTrack(track, this.localStream);
             });
             
+            // Configurar handlers
             this.setupPeerConnectionHandlers();
             
+            // Crear offer
             this.isInitiator = true;
             this.callId = 'call_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
             
             const offer = await this.peerConnection.createOffer();
-            
-            // Limpiar el SDP del offer ANTES de establecerlo como local description
-            // Esto evita que se incluyan códecs problemáticos en el SDP
-            if (offer.sdp) {
-                offer.sdp = this.cleanSDP(offer.sdp);
-            }
-            
             await this.peerConnection.setLocalDescription(offer);
             
-            // Limpiar nuevamente antes de enviar (por si acaso)
-            const cleanedOffer = {
+            // Enviar offer
+            await this.enviarSeñalizacion('offer', {
                 type: offer.type,
-                sdp: this.cleanSDP(offer.sdp)
-            };
+                sdp: offer.sdp
+            });
             
-            await this.sendSignalingMessage('offer', cleanedOffer);
+            // Iniciar polling de señalización
+            this.iniciarPolling();
             
-            this.startSignalingPolling();
+            this.actualizarEstado('Esperando respuesta...');
             
         } catch (error) {
-            alert('Error al acceder a la cámara/micrófono: ' + error.message);
+            console.error('Error al iniciar videollamada:', error);
+            alert('Error al iniciar la videollamada: ' + error.message);
             this.endCall();
         }
     }
     
+    /**
+     * Configurar handlers de la conexión peer
+     */
     setupPeerConnectionHandlers() {
-        if (!this.peerConnection) return;
-        
+        // Cuando recibimos un track remoto
         this.peerConnection.ontrack = (event) => {
-            console.log('Track recibido:', event.track.kind);
+            console.log('Track remoto recibido:', event.track.kind);
             this.remoteStream = event.streams[0];
             if (this.videoRemoto) {
                 this.videoRemoto.srcObject = this.remoteStream;
-                this.videoRemoto.onloadedmetadata = () => {
-                    console.log('Video remoto cargado');
-                };
-            }
-            if (this.estadoVideollamada) {
-                this.estadoVideollamada.style.display = 'none';
             }
             this.isInCall = true;
-            this.startCallTimer();
+            this.iniciarTimer();
+            this.ocultarEstado();
         };
         
+        // Cuando se genera un ICE candidate
         this.peerConnection.onicecandidate = (event) => {
             if (event.candidate) {
-                console.log('ICE candidate generado:', event.candidate.type);
-                this.sendSignalingMessage('ice-candidate', event.candidate.toJSON());
-            } else {
-                console.log('Todos los ICE candidates han sido generados');
+                this.enviarSeñalizacion('ice-candidate', event.candidate.toJSON());
             }
         };
         
-        this.peerConnection.onicegatheringstatechange = () => {
-            console.log('ICE gathering state:', this.peerConnection.iceGatheringState);
-        };
-        
+        // Cambios en el estado de conexión
         this.peerConnection.onconnectionstatechange = () => {
             const state = this.peerConnection.connectionState;
-            console.log('Connection state:', state);
-            
-            if (!this.estadoVideollamada) return;
             
             switch (state) {
                 case 'connected':
-                    this.estadoVideollamada.style.display = 'none';
                     this.isInCall = true;
-                    this.startCallTimer();
-                    this.stopSignalingPolling();
+                    this.iniciarTimer();
+                    this.ocultarEstado();
+                    this.detenerPolling(); // Ya no necesitamos polling cuando estamos conectados
                     break;
                 case 'disconnected':
-                    if (this.estadoVideollamada) {
-                        this.estadoVideollamada.innerHTML = `
-                            <i class="fa fa-exclamation-triangle fa-3x mb-3 text-warning"></i>
-                            <h5>Conexión perdida</h5>
-                            <p>Intentando reconectar...</p>
-                        `;
-                        this.estadoVideollamada.style.display = 'block';
+                    // Intentar reconectar solo si no fue intencional
+                    if (this.isInCall) {
+                        this.actualizarEstado('Conexión perdida. Intentando reconectar...');
+                        // Reiniciar polling para intentar reconectar
+                        if (!this.signalingInterval) {
+                            this.iniciarPolling();
+                        }
                     }
                     break;
                 case 'failed':
-                    console.error('Conexión WebRTC falló');
-                    if (this.estadoVideollamada) {
-                        this.estadoVideollamada.innerHTML = `
-                            <i class="fa fa-times-circle fa-3x mb-3 text-danger"></i>
-                            <h5>Error de conexión</h5>
-                            <p>No se pudo establecer la conexión. Por favor, intenta de nuevo.</p>
-                        `;
-                        this.estadoVideollamada.style.display = 'block';
-                    }
+                    this.actualizarEstado('Error de conexión. Cerrando...');
                     setTimeout(() => this.endCall(), 3000);
                     break;
-                case 'connecting':
-                    if (this.estadoVideollamada) {
-                        this.estadoVideollamada.innerHTML = `
-                            <i class="fa fa-spinner fa-spin fa-3x mb-3"></i>
-                            <h5>Conectando...</h5>
-                            <p>Estableciendo conexión con el otro usuario</p>
-                        `;
-                        this.estadoVideollamada.style.display = 'block';
+                case 'closed':
+                    // Solo terminar si no fue intencional
+                    if (this.isInCall) {
+                        this.endCall();
                     }
                     break;
             }
         };
         
+        // Cambios en el estado ICE
         this.peerConnection.oniceconnectionstatechange = () => {
             const iceState = this.peerConnection.iceConnectionState;
-            console.log('ICE connection state:', iceState);
             
             switch (iceState) {
                 case 'failed':
-                    console.error('ICE connection falló');
-                    if (this.estadoVideollamada) {
-                        this.estadoVideollamada.innerHTML = `
-                            <i class="fa fa-exclamation-triangle fa-3x mb-3 text-warning"></i>
-                            <h5>Problema de conexión</h5>
-                            <p>No se pudo establecer la conexión de red. Verifica tu conexión a internet.</p>
-                        `;
-                        this.estadoVideollamada.style.display = 'block';
-                    }
+                    this.actualizarEstado('Error de conexión de red. Verifica tu conexión a internet.');
                     setTimeout(() => this.endCall(), 5000);
                     break;
                 case 'disconnected':
-                    console.warn('ICE connection desconectado');
+                    if (this.isInCall) {
+                        this.actualizarEstado('Conexión de red perdida. Intentando reconectar...');
+                    }
                     break;
                 case 'connected':
                 case 'completed':
-                    console.log('ICE connection establecida');
+                    // Conexión establecida correctamente
                     break;
             }
         };
     }
     
-    async sendSignalingMessage(tipo, datos) {
+    /**
+     * Enviar mensaje de señalización
+     */
+    async enviarSeñalizacion(tipo, datos) {
         try {
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
             if (!csrfToken) {
                 console.error('No se encontró el token CSRF');
-                return;
+                return false;
             }
             
-            // Serializar correctamente el SDP
-            let datosSerializados = datos;
-            if (datos && typeof datos === 'object') {
-                // Si es un RTCSessionDescription, convertir a objeto plano
-                if (datos.type && datos.sdp) {
-                    datosSerializados = {
-                        type: datos.type,
-                        sdp: this.cleanSDP(datos.sdp)
-                    };
-                } else if (datos.toJSON) {
-                    // Si tiene método toJSON, usarlo y limpiar el SDP
-                    datosSerializados = datos.toJSON();
-                    if (datosSerializados.sdp) {
-                        datosSerializados.sdp = this.cleanSDP(datosSerializados.sdp);
-                    }
-                } else {
-                    // Serializar normalmente
-                    datosSerializados = JSON.parse(JSON.stringify(datos));
-                    if (datosSerializados.sdp) {
-                        datosSerializados.sdp = this.cleanSDP(datosSerializados.sdp);
-                    }
-                }
-            }
+            // Timeout para evitar que se quede colgado
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 segundos
             
             const response = await fetch(`/chats/${this.chatId}/videollamada/señalizacion`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken
+                    'X-CSRF-TOKEN': csrfToken,
+                    'Accept': 'application/json'
                 },
                 body: JSON.stringify({
                     tipo: tipo,
-                    datos: datosSerializados,
+                    datos: datos,
                     call_id: this.callId,
                     usuario_id: this.usuarioId
-                })
+                }),
+                signal: controller.signal
             });
             
+            clearTimeout(timeoutId);
+            
             if (!response.ok) {
-                console.error('Error al enviar señalización:', response.statusText);
-                return;
+                if (response.status === 401 || response.status === 403) {
+                    console.error('Error de autenticación al enviar señalización');
+                    alert('Error de autenticación. Por favor, recarga la página.');
+                } else if (response.status === 404) {
+                    console.error('Chat o usuario no encontrado');
+                    alert('Error: No se encontró el chat. Por favor, recarga la página.');
+                } else {
+                    console.error('Error al enviar señalización:', response.status, response.statusText);
+                }
+                return false;
             }
             
             const result = await response.json();
-            if (!result.success) {
-                console.error('Error en respuesta de señalización:', result);
-                return;
-            }
+            return result.success === true;
         } catch (error) {
-            console.error('Error al enviar mensaje de señalización:', error);
-        }
-    }
-    
-    async handleSignalingMessage(tipo, datos) {
-        try {
-            switch (tipo) {
-                case 'offer':
-                    // Si ya somos el iniciador, ignorar este offer
-                    if (this.isInitiator) {
-                        console.log('Ignorando offer porque ya somos el iniciador');
-                        return;
-                    }
-                    
-                    // Si ya estamos en una llamada, ignorar
-                    if (this.isInCall || this.peerConnection) {
-                        console.log('Ignorando offer porque ya hay una llamada activa');
-                        return;
-                    }
-                    
-                    console.log('Llamada entrante detectada');
-                    // Mostrar notificación de llamada entrante (no necesita peerConnection todavía)
-                    this.showIncomingCallNotification(datos);
-                    break;
-                    
-                case 'answer':
-                    // Solo procesar answer si somos el iniciador y tenemos peerConnection
-                    if (!this.isInitiator || !this.peerConnection) {
-                        console.log('Ignorando answer porque no somos el iniciador o no hay peerConnection');
-                        return;
-                    }
-                    console.log('Recibiendo answer...');
-                    // Asegurar que datos tenga el formato correcto
-                    const answerData = {
-                        type: datos.type || 'answer',
-                        sdp: this.cleanSDP(datos.sdp || '')
-                    };
-                    if (!answerData.sdp || answerData.sdp.trim().length === 0) {
-                        throw new Error('El SDP del answer está vacío o inválido');
-                    }
-                    
-                    // Asegurar que el SDP esté limpio
-                    const originalAnswerLength = answerData.sdp.length;
-                    answerData.sdp = this.cleanSDP(answerData.sdp);
-                    const cleanedAnswerLength = answerData.sdp.length;
-                    
-                    if (originalAnswerLength !== cleanedAnswerLength) {
-                        console.log(`Answer SDP limpiado: ${originalAnswerLength} -> ${cleanedAnswerLength} caracteres`);
-                    }
-                    
-                    // Verificar que no queden líneas problemáticas
-                    const answerSdpLines = answerData.sdp.split('\n');
-                    const remainingProblematic = answerSdpLines.filter(line => {
-                        const trimmed = line.trim();
-                        return trimmed.startsWith('a=msid:') || 
-                               trimmed.startsWith('a=cname:') || 
-                               trimmed.startsWith('a=ssrc:') || 
-                               trimmed.startsWith('a=ssrc-group:') ||
-                               trimmed.startsWith('a=label:');
-                    });
-                    
-                    if (remainingProblematic.length > 0) {
-                        console.error('ADVERTENCIA: Aún quedan líneas problemáticas en answer después de limpiar:', remainingProblematic);
-                        // Limpiar nuevamente si quedan líneas problemáticas
-                        answerData.sdp = this.cleanSDP(answerData.sdp);
-                    }
-                    
-                    try {
-                        await this.peerConnection.setRemoteDescription(new RTCSessionDescription(answerData));
-                    } catch (error) {
-                        console.error('Error al establecer remote description (answer):', error);
-                        console.error('SDP recibido (primeras 500 chars):', answerData.sdp.substring(0, 500));
-                        console.error('Líneas problemáticas que aún quedan:', remainingProblematic);
-                        throw error;
-                    }
-                    break;
-                    
-                case 'ice-candidate':
-                    if (!this.peerConnection) {
-                        console.warn('No hay peerConnection para agregar ICE candidate');
-                        return;
-                    }
-                    if (datos && (datos.candidate || datos.sdpMLineIndex !== undefined)) {
-                        try {
-                            await this.peerConnection.addIceCandidate(new RTCIceCandidate(datos));
-                            console.log('ICE candidate agregado exitosamente');
-                        } catch (error) {
-                            // Ignorar errores si la conexión ya está establecida
-                            if (this.peerConnection.connectionState !== 'connected' && 
-                                this.peerConnection.connectionState !== 'completed') {
-                                console.warn('Error al agregar ICE candidate:', error);
-                            }
-                        }
-                    }
-                    break;
-                    
-                case 'call-rejected':
-                    // Llamada rechazada por el otro usuario
-                    console.log('Llamada rechazada por el otro usuario');
-                    this.showCallRejectedNotification();
-                    this.endCall();
-                    break;
+            if (error.name === 'AbortError') {
+                console.error('Timeout al enviar señalización');
+                return false;
             }
-        } catch (error) {
-            console.error('Error al procesar mensaje de señalización:', error);
-            // Si es error de SDP, mostrar mensaje más claro
-            if (error.message && error.message.includes('SessionDescription')) {
-                console.error('Error de SDP:', error);
-                if (this.estadoVideollamada) {
-                    this.estadoVideollamada.innerHTML = `
-                        <i class="fa fa-exclamation-triangle fa-3x mb-3 text-danger"></i>
-                        <h5>Error de conexión</h5>
-                        <p>No se pudo establecer la conexión. Por favor, intenta de nuevo.</p>
-                    `;
-                    this.estadoVideollamada.style.display = 'block';
-                }
-                setTimeout(() => this.endCall(), 3000);
-            }
+            console.error('Error al enviar señalización:', error);
+            return false;
         }
-    }
-    
-    showCallRejectedNotification() {
-        // Mostrar notificación de llamada perdida/rechazada
-        if (this.estadoVideollamada) {
-            this.estadoVideollamada.innerHTML = `
-                <i class="fa fa-phone-slash fa-3x mb-3 text-danger"></i>
-                <h5>Llamada perdida</h5>
-                <p>El usuario no pudo atender la llamada</p>
-            `;
-            this.estadoVideollamada.style.display = 'block';
-        }
-        
-        // Cerrar automáticamente después de 3 segundos
-        setTimeout(() => {
-            this.endCall();
-        }, 3000);
     }
     
     /**
-     * Limpiar y validar el SDP antes de usarlo
-     * Elimina líneas opcionales problemáticas que causan errores de parsing
+     * Iniciar polling para recibir mensajes de señalización
      */
-    cleanSDP(sdp) {
-        if (!sdp || typeof sdp !== 'string') {
-            return '';
-        }
-        
-        // Normalizar saltos de línea
-        sdp = sdp.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-        
-        // Dividir en líneas
-        const lines = sdp.split('\n');
-        const cleanedLines = [];
-        
-        // Líneas opcionales que causan problemas y pueden eliminarse completamente
-        // Estas líneas NO son necesarias para establecer la conexión WebRTC
-        // IMPORTANTE: NO eliminar a=mid: porque es necesario para identificar medios
-        const problematicLines = [
-            'a=msid:',          // Identificación de streams (opcional)
-            'a=cname:',         // Nombre de cámara (opcional)
-            'a=ssrc-group:',    // Agrupación de SSRC (opcional, causa problemas)
-            'a=label:',         // Etiquetas (opcional)
-        ];
-        
-        for (let line of lines) {
-            // Eliminar espacios al inicio y final
-            line = line.trim();
-            
-            // Saltar líneas vacías
-            if (!line) {
-                continue;
-            }
-            
-            // Eliminar caracteres de control
-            line = line.replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/g, '');
-            
-            // Validar formato de línea SDP
-            // Las líneas SDP válidas empiezan con una letra seguida de '='
-            if (line.match(/^[a-z]=/i)) {
-                // ELIMINAR líneas opcionales problemáticas
-                let isProblematic = false;
-                for (const problematic of problematicLines) {
-                    if (line.startsWith(problematic)) {
-                        console.warn(`Línea ${problematic} eliminada (opcional y problemática):`, line);
-                        isProblematic = true;
-                        break;
-                    }
-                }
-                if (isProblematic) {
-                    continue; // Saltar esta línea completamente
-                }
-                // ELIMINAR todas las líneas a=ssrc y a=ssrc-group - son opcionales y causan muchos problemas
-                // Las líneas ssrc son para sincronización de streams pero no son necesarias
-                if (line.startsWith('a=ssrc:') || line.startsWith('a=ssrc-group:')) {
-                    console.warn('Línea a=ssrc/a=ssrc-group eliminada (opcional y problemática):', line);
-                    continue; // Saltar completamente
-                }
-                
-                // Limpiar y validar líneas a=rtpmap (ESENCIALES - solo eliminar códecs que causan errores de parsing)
-                if (line.startsWith('a=rtpmap:')) {
-                    // SOLO eliminar códecs que realmente causan errores de parsing en navegadores
-                    // ulpfec es el único que sabemos que causa problemas de parsing
-                    // red, rtx, flexfec son opcionales pero compatibles, así que los preservamos
-                    const parsingErrorCodecs = ['ulpfec'];
-                    
-                    // Verificar si el códec causa errores de parsing
-                    let causesParsingError = false;
-                    for (const codec of parsingErrorCodecs) {
-                        if (line.toLowerCase().includes(codec)) {
-                            console.warn(`Línea a=rtpmap con códec que causa error de parsing ${codec} eliminada:`, line);
-                            causesParsingError = true;
-                            break;
-                        }
-                    }
-                    
-                    if (causesParsingError) {
-                        continue; // Saltar esta línea
-                    }
-                    
-                    // Limpiar espacios extra y caracteres problemáticos
-                    let cleanedRtpmap = line.replace(/\s+/g, ' ').trim();
-                    
-                    // Validar y corregir formato básico
-                    // Formato esperado: a=rtpmap:<payload_type> <encoding_name>/<clock_rate>[/<encoding_parameters>]
-                    const rtpmapMatch = cleanedRtpmap.match(/^a=rtpmap:(\d+)\s+([^\s/]+)\/(\d+)(?:\/(.+))?$/);
-                    if (rtpmapMatch) {
-                        // Formato válido, reconstruir la línea correctamente
-                        const payloadType = rtpmapMatch[1];
-                        const encodingName = rtpmapMatch[2];
-                        const clockRate = rtpmapMatch[3];
-                        const encodingParams = rtpmapMatch[4];
-                        
-                        // Asegurar que los códecs esenciales se preserven
-                        const essentialCodecs = ['opus', 'vp8', 'vp9', 'h264', 'pcmu', 'pcma', 'g722'];
-                        const isEssential = essentialCodecs.some(codec => encodingName.toLowerCase().includes(codec));
-                        
-                        if (encodingParams) {
-                            cleanedRtpmap = `a=rtpmap:${payloadType} ${encodingName}/${clockRate}/${encodingParams}`;
-                        } else {
-                            cleanedRtpmap = `a=rtpmap:${payloadType} ${encodingName}/${clockRate}`;
-                        }
-                        
-                        if (isEssential) {
-                            console.log(`Preservando códec esencial: ${encodingName}`);
-                        }
-                        
-                        cleanedLines.push(cleanedRtpmap);
-                    } else {
-                        // Si no coincide el formato exacto, intentar limpiar y validar
-                        // Puede ser un formato válido pero con espacios extra
-                        cleanedRtpmap = cleanedRtpmap.replace(/\s{2,}/g, ' ').trim();
-                        
-                        // Verificar que tenga al menos el formato básico a=rtpmap:X Y/Z
-                        if (cleanedRtpmap.match(/^a=rtpmap:\d+\s+.+\/\d+/)) {
-                            console.warn('Línea a=rtpmap con formato inusual pero válido, limpiando:', line);
-                            cleanedLines.push(cleanedRtpmap);
-                        } else {
-                            console.error('Línea a=rtpmap con formato inválido, eliminando:', line);
-                            // No agregar líneas con formato completamente inválido
-                        }
-                    }
-                    continue;
-                }
-                
-                // Limpiar líneas a=fmtp (preservar todas excepto las relacionadas con códecs que causan errores)
-                if (line.startsWith('a=fmtp:')) {
-                    // Solo eliminar fmtp relacionado con ulpfec (que causa errores de parsing)
-                    if (line.toLowerCase().includes('ulpfec')) {
-                        console.warn('Línea a=fmtp relacionada con ulpfec eliminada:', line);
-                        continue;
-                    }
-                    
-                    // Limpiar espacios extra
-                    let cleanedFmtp = line.replace(/\s+/g, ' ').trim();
-                    
-                    // Validar y corregir formato de a=fmtp
-                    // Formato esperado: a=fmtp:<payload_type> <parameters>
-                    const fmtpMatch = cleanedFmtp.match(/^a=fmtp:(\d+)\s+(.+)$/);
-                    if (fmtpMatch) {
-                        const payloadType = fmtpMatch[1];
-                        let parameters = fmtpMatch[2].trim();
-                        
-                        // Si tiene parámetros apt= (asociado con rtx), ELIMINAR si solo tiene apt=
-                        // apt= es un parámetro de retransmisión que algunos navegadores rechazan
-                        if (parameters.includes('apt=')) {
-                            // Si solo tiene apt= (sin otros parámetros), eliminar esta línea
-                            // porque causa errores de parsing en Chrome
-                            if (parameters.match(/^apt=\d+$/i) || parameters.trim().match(/^apt=\d+\s*$/i)) {
-                                console.warn('Línea a=fmtp con solo apt= eliminada (causa problemas de parsing):', line);
-                                continue;
-                            }
-                            
-                            // Si tiene apt= junto con otros parámetros, intentar preservarlo
-                            const aptMatch = parameters.match(/apt\s*=\s*(\d+)/);
-                            if (aptMatch) {
-                                // Formato válido, reconstruir con formato estándar (apt= sin espacios)
-                                const aptValue = aptMatch[1];
-                                parameters = parameters.replace(/apt\s*=\s*\d+/, `apt=${aptValue}`);
-                                cleanedFmtp = `a=fmtp:${payloadType} ${parameters}`;
-                                cleanedLines.push(cleanedFmtp);
-                            } else {
-                                // Formato inválido de apt=, eliminar esta línea
-                                console.warn('Línea a=fmtp con formato apt= inválido eliminada:', line);
-                                continue;
-                            }
-                        } else {
-                            // No tiene apt=, solo limpiar y preservar
-                            cleanedFmtp = `a=fmtp:${payloadType} ${parameters}`;
-                            cleanedLines.push(cleanedFmtp);
-                        }
-                    } else {
-                        // Si no coincide el formato exacto, intentar extraer y reconstruir
-                        const basicMatch = cleanedFmtp.match(/^a=fmtp:(\d+)(?:\s+(.+))?$/);
-                        if (basicMatch) {
-                            const payloadType = basicMatch[1];
-                            const parameters = basicMatch[2] || '';
-                            
-                            if (parameters.includes('apt=')) {
-                                // Intentar corregir formato apt=
-                                const aptMatch = parameters.match(/apt\s*=\s*(\d+)/);
-                                if (aptMatch) {
-                                    const aptValue = aptMatch[1];
-                                    const correctedParams = parameters.replace(/apt\s*=\s*\d+/, `apt=${aptValue}`).trim();
-                                    cleanedFmtp = `a=fmtp:${payloadType} ${correctedParams}`;
-                                    console.warn('Línea a=fmtp corregida:', line, '->', cleanedFmtp);
-                                    cleanedLines.push(cleanedFmtp);
-                                } else {
-                                    console.warn('Línea a=fmtp con formato apt= inválido eliminada:', line);
-                                    continue;
-                                }
-                            } else {
-                                // Sin apt=, reconstruir con formato estándar
-                                cleanedFmtp = `a=fmtp:${payloadType} ${parameters.trim()}`;
-                                cleanedLines.push(cleanedFmtp);
-                            }
-                        } else {
-                            console.error('Línea a=fmtp con formato completamente inválido, eliminando:', line);
-                            // No agregar líneas con formato completamente inválido
-                        }
-                    }
-                    continue;
-                }
-                
-                // Para otras líneas SDP, agregarlas tal cual
-                cleanedLines.push(line);
-            } else {
-                // Si no es una línea SDP válida, intentar limpiarla o saltarla
-                // Algunas líneas pueden ser comentarios o metadatos
-                if (line.length > 0 && !line.startsWith('#')) {
-                    cleanedLines.push(line);
-                }
-            }
-        }
-        
-        return cleanedLines.join('\r\n');
-    }
-    
-    startSignalingPolling() {
-        // Solo iniciar si no hay una conexión activa
-        if (this.signalingEventSource || this.signalingInterval) {
+    iniciarPolling() {
+        if (this.signalingInterval) {
             return;
         }
         
-        // Intentar usar Server-Sent Events primero (más eficiente)
-        if (typeof EventSource !== 'undefined') {
-            this.startSignalingSSE();
-        } else {
-            // Fallback a polling tradicional si SSE no está disponible
-            this.startSignalingPollingFallback();
-        }
-    }
-    
-    startSignalingSSE() {
-        try {
-            // Crear conexión SSE (usa cookies de sesión automáticamente)
-            const url = `/chats/${this.chatId}/videollamada/stream`;
-            this.signalingEventSource = new EventSource(url);
-            
-            this.signalingEventSource.onopen = () => {
-                console.log('SSE conectado para señalización');
-            };
-            
-            this.signalingEventSource.onmessage = async (event) => {
-                // Ignorar heartbeats (comentarios)
-                if (event.data.startsWith(':')) {
-                    return;
-                }
-                
-                try {
-                    const data = JSON.parse(event.data);
-                    
-                    if (data.type === 'timeout') {
-                        console.log('SSE timeout, reconectando...');
-                        this.stopSignalingPolling();
-                        // Reconectar después de un breve delay
-                        setTimeout(() => this.startSignalingPolling(), 1000);
-                        return;
-                    }
-                    
-                    // Procesar mensaje de señalización
-                    if (data.tipo && data.datos) {
-                        console.log('Mensaje SSE recibido:', data.tipo);
-                        
-                        // Si es un offer y no estamos en llamada, mostrar notificación
-                        if (data.tipo === 'offer' && !this.isInCall && !this.peerConnection) {
-                            console.log('Llamada entrante detectada vía SSE');
-                            this.showIncomingCallNotification(data.datos);
-                            return; // No procesar el offer todavía, esperar a que el usuario acepte
-                        }
-                        
-                        // Para otros tipos de mensajes, necesitamos peerConnection
-                        if (!this.peerConnection) {
-                            console.warn('Mensaje recibido pero no hay peerConnection activa');
-                            return;
-                        }
-                        
-                        await this.handleSignalingMessage(data.tipo, data.datos);
-                    }
-                } catch (error) {
-                    // Si no es JSON, probablemente es un heartbeat
-                    if (error.message && error.message.includes('JSON')) {
-                        return;
-                    }
-                    console.error('Error al procesar mensaje SSE:', error);
-                }
-            };
-            
-            this.signalingEventSource.onerror = (error) => {
-                console.warn('Error en SSE, cambiando a polling fallback');
-                this.stopSignalingPolling();
-                // Cambiar a polling tradicional si SSE falla
-                setTimeout(() => this.startSignalingPollingFallback(), 1000);
-            };
-            
-            console.log('SSE iniciado para señalización');
-        } catch (error) {
-            console.warn('No se pudo iniciar SSE, usando polling fallback:', error);
-            this.startSignalingPollingFallback();
-        }
-    }
-    
-    startSignalingPollingFallback() {
         let pollingAttempts = 0;
-        const maxPollingAttempts = 300; // 10 minutos máximo (300 * 2 segundos)
+        const maxPollingAttempts = 150; // 5 minutos máximo (150 * 2 segundos)
         
         this.signalingInterval = setInterval(async () => {
-            // No salir si estamos en llamada, pero sí si tenemos peerConnection activa esperando respuesta
-            if (this.isInCall) {
-                pollingAttempts = 0; // Resetear contador si ya estamos en llamada
+            // Si ya estamos conectados, reducir frecuencia de polling
+            if (this.isInCall && this.peerConnection?.connectionState === 'connected') {
+                pollingAttempts = 0; // Resetear contador
                 return;
             }
             
             pollingAttempts++;
             
-            // Limitar el tiempo de polling para evitar consumo excesivo
+            // Limitar tiempo de polling para evitar consumo excesivo
             if (pollingAttempts > maxPollingAttempts) {
-                console.warn('Polling de señalización excedió el tiempo máximo');
-                this.stopSignalingPolling();
-                if (this.estadoVideollamada) {
-                    this.estadoVideollamada.innerHTML = `
-                        <i class="fa fa-exclamation-triangle fa-3x mb-3 text-warning"></i>
-                        <h5>Timeout de conexión</h5>
-                        <p>La conexión tardó demasiado. Por favor, intenta de nuevo.</p>
-                    `;
+                console.warn('Polling excedió el tiempo máximo');
+                this.detenerPolling();
+                if (!this.isInCall) {
+                    this.actualizarEstado('Timeout de conexión. Por favor, intenta de nuevo.');
+                    setTimeout(() => this.endCall(), 3000);
                 }
                 return;
             }
@@ -1208,12 +456,12 @@ class VideoCall {
             try {
                 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
                 if (!csrfToken) {
-                    console.warn('No se encontró token CSRF');
                     return;
                 }
                 
+                // Timeout para evitar que el polling se quede colgado
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 5000); // Timeout de 5 segundos
+                const timeoutId = setTimeout(() => controller.abort(), 5000);
                 
                 const response = await fetch(`/chats/${this.chatId}/videollamada/señalizacion`, {
                     method: 'GET',
@@ -1227,123 +475,133 @@ class VideoCall {
                 clearTimeout(timeoutId);
                 
                 if (!response.ok) {
-                    console.warn('Error en respuesta de polling:', response.status, response.statusText);
+                    if (response.status === 401 || response.status === 403) {
+                        console.error('Error de autenticación en polling');
+                        this.detenerPolling();
+                    }
                     return;
                 }
                 
                 const result = await response.json();
                 if (result.success && result.mensajes && result.mensajes.length > 0) {
                     for (const mensaje of result.mensajes) {
-                        // Si es un offer y no estamos en llamada, mostrar notificación
-                        if (mensaje.tipo === 'offer' && !this.isInCall && !this.peerConnection) {
-                            console.log('Llamada entrante detectada vía polling');
-                            this.showIncomingCallNotification(mensaje.datos);
-                            continue; // No procesar el offer todavía, esperar a que el usuario acepte
-                        }
-                        
-                        // Para otros tipos de mensajes, necesitamos peerConnection
-                        if (!this.peerConnection) {
-                            console.warn('Mensaje recibido pero no hay peerConnection activa');
+                        // Ignorar mensajes propios
+                        if (mensaje.from_usuario_id === this.usuarioId) {
                             continue;
                         }
                         
-                        await this.handleSignalingMessage(mensaje.tipo, mensaje.datos);
+                        await this.procesarMensajeSeñalizacion(mensaje.tipo, mensaje.datos);
                     }
                     pollingAttempts = 0; // Resetear contador al recibir mensajes
                 }
             } catch (error) {
                 if (error.name === 'AbortError') {
-                    console.warn('Timeout en polling de señalización');
-                } else {
-                    console.error('Error en polling de señalización:', error);
+                    // Timeout, continuar
+                    return;
                 }
+                console.error('Error en polling:', error);
             }
-        }, 2000);
+        }, 2000); // Polling cada 2 segundos
     }
     
-    stopSignalingPolling() {
-        // Cerrar SSE si está activo
-        if (this.signalingEventSource) {
-            this.signalingEventSource.close();
-            this.signalingEventSource = null;
-        }
-        
-        // Detener polling tradicional si está activo
+    /**
+     * Detener polling
+     */
+    detenerPolling() {
         if (this.signalingInterval) {
             clearInterval(this.signalingInterval);
             this.signalingInterval = null;
         }
     }
     
-    toggleAudio() {
-        if (this.localStream && this.btnToggleAudio) {
-            const audioTrack = this.localStream.getAudioTracks()[0];
-            if (audioTrack) {
-                audioTrack.enabled = !audioTrack.enabled;
-                this.isAudioMuted = !audioTrack.enabled;
-                
-                if (this.isAudioMuted) {
-                    this.btnToggleAudio.innerHTML = '<i class="fa fa-microphone-slash"></i>';
-                    this.btnToggleAudio.classList.add('btn-danger');
-                } else {
-                    this.btnToggleAudio.innerHTML = '<i class="fa fa-microphone"></i>';
-                    this.btnToggleAudio.classList.remove('btn-danger');
-                }
+    /**
+     * Procesar mensaje de señalización recibido
+     */
+    async procesarMensajeSeñalizacion(tipo, datos) {
+        try {
+            switch (tipo) {
+                case 'offer':
+                    // Si ya somos iniciadores, ignorar
+                    if (this.isInitiator) {
+                        return;
+                    }
+                    
+                    // Si ya estamos en llamada, ignorar
+                    if (this.isInCall || this.peerConnection) {
+                        return;
+                    }
+                    
+                    // Mostrar notificación de llamada entrante
+                    this.mostrarLlamadaEntrante(datos);
+                    break;
+                    
+                case 'answer':
+                    // Solo procesar si somos iniciadores
+                    if (!this.isInitiator || !this.peerConnection) {
+                        return;
+                    }
+                    
+                    await this.peerConnection.setRemoteDescription(new RTCSessionDescription(datos));
+                    break;
+                    
+                case 'ice-candidate':
+                    if (!this.peerConnection) {
+                        return;
+                    }
+                    
+                    try {
+                        await this.peerConnection.addIceCandidate(new RTCIceCandidate(datos));
+                    } catch (error) {
+                        // Ignorar errores si la conexión ya está establecida
+                        if (this.peerConnection.connectionState !== 'connected' && 
+                            this.peerConnection.connectionState !== 'completed') {
+                            console.warn('Error al agregar ICE candidate:', error);
+                        }
+                    }
+                    break;
+                    
+                case 'call-rejected':
+                    this.actualizarEstado('Llamada rechazada.');
+                    setTimeout(() => this.endCall(), 3000);
+                    break;
+            }
+        } catch (error) {
+            console.error('Error al procesar mensaje de señalización:', error);
+        }
+    }
+    
+    /**
+     * Mostrar notificación de llamada entrante
+     */
+    mostrarLlamadaEntrante(offerData) {
+        this.incomingOffer = offerData;
+        
+        if (this.modalLlamadaEntrante) {
+            if (typeof bootstrap !== 'undefined') {
+                const modal = new bootstrap.Modal(this.modalLlamadaEntrante, {
+                    backdrop: 'static',
+                    keyboard: false
+                });
+                modal.show();
+            } else {
+                this.modalLlamadaEntrante.style.display = 'block';
+                this.modalLlamadaEntrante.classList.add('show');
             }
         }
     }
     
-    toggleVideo() {
-        if (this.localStream && this.btnToggleVideo) {
-            const videoTrack = this.localStream.getVideoTracks()[0];
-            if (videoTrack) {
-                videoTrack.enabled = !videoTrack.enabled;
-                this.isVideoMuted = !videoTrack.enabled;
-                
-                if (this.isVideoMuted) {
-                    this.btnToggleVideo.innerHTML = '<i class="fa fa-video-slash"></i>';
-                    this.btnToggleVideo.classList.add('btn-danger');
-                } else {
-                    this.btnToggleVideo.innerHTML = '<i class="fa fa-video-camera"></i>';
-                    this.btnToggleVideo.classList.remove('btn-danger');
-                }
-            }
-        }
-    }
-    
-    endCall() {
-        if (this.isInCall) {
-            this.isInCall = false;
-            this.stopCallTimer();
+    /**
+     * Aceptar llamada entrante
+     */
+    async aceptarLlamada() {
+        console.log('Aceptando llamada entrante...');
+        
+        if (!this.incomingOffer) {
+            console.error('No hay oferta de llamada para aceptar');
+            return;
         }
         
-        if (this.peerConnection) {
-            this.peerConnection.close();
-            this.peerConnection = null;
-        }
-        
-        if (this.localStream) {
-            this.localStream.getTracks().forEach(track => track.stop());
-            this.localStream = null;
-        }
-        
-        if (this.remoteStream) {
-            this.remoteStream.getTracks().forEach(track => track.stop());
-            this.remoteStream = null;
-        }
-        
-        if (this.videoLocal) {
-            this.videoLocal.srcObject = null;
-        }
-        if (this.videoRemoto) {
-            this.videoRemoto.srcObject = null;
-        }
-        
-        this.stopSignalingPolling();
-        this.stopCallSound();
-        this.incomingCallOffer = null;
-        
-        // Cerrar modal de notificación si está abierto
+        // Cerrar modal de notificación
         if (this.modalLlamadaEntrante) {
             if (typeof bootstrap !== 'undefined') {
                 const modal = bootstrap.Modal.getInstance(this.modalLlamadaEntrante);
@@ -1354,23 +612,209 @@ class VideoCall {
             }
         }
         
-        // Cerrar el modal correctamente
-        if (typeof bootstrap !== 'undefined' && this.modalVideollamada) {
+        try {
+            // Mostrar modal de videollamada
+            this.mostrarModal();
+            
+            // Obtener acceso a cámara y micrófono con manejo de errores mejorado
             try {
-                const modal = bootstrap.Modal.getInstance(this.modalVideollamada);
-                if (modal) {
-                    modal.hide();
+                this.localStream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        width: { ideal: 1280, max: 1920 },
+                        height: { ideal: 720, max: 1080 },
+                        frameRate: { ideal: 30, max: 60 }
+                    },
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true,
+                        sampleRate: 48000
+                    }
+                });
+            } catch (mediaError) {
+                console.error('Error al acceder a medios:', mediaError);
+                
+                // Mensajes de error más específicos
+                if (mediaError.name === 'NotAllowedError' || mediaError.name === 'PermissionDeniedError') {
+                    alert('Se requiere permiso para acceder a la cámara y micrófono. Por favor, permite el acceso en la configuración de tu navegador.');
+                } else if (mediaError.name === 'NotFoundError' || mediaError.name === 'DevicesNotFoundError') {
+                    alert('No se encontraron cámara o micrófono. Por favor, verifica que estén conectados.');
+                } else if (mediaError.name === 'NotReadableError' || mediaError.name === 'TrackStartError') {
+                    alert('La cámara o micrófono están siendo usados por otra aplicación. Por favor, ciérrala e intenta de nuevo.');
                 } else {
-                    this.closeModalManually();
+                    alert('Error al acceder a la cámara/micrófono: ' + mediaError.message);
                 }
-            } catch (error) {
-                console.error('Error al cerrar modal con Bootstrap:', error);
-                this.closeModalManually();
+                
+                this.endCall();
+                return;
             }
-        } else {
-            this.closeModalManually();
+            
+            // Mostrar video local
+            if (this.videoLocal) {
+                this.videoLocal.srcObject = this.localStream;
+            }
+            
+            // Crear conexión peer
+            this.peerConnection = new RTCPeerConnection(this.configuration);
+            
+            // Agregar tracks locales
+            this.localStream.getTracks().forEach(track => {
+                this.peerConnection.addTrack(track, this.localStream);
+            });
+            
+            // Configurar handlers
+            this.setupPeerConnectionHandlers();
+            
+            // Procesar offer recibido
+            await this.peerConnection.setRemoteDescription(new RTCSessionDescription(this.incomingOffer));
+            
+            // Crear answer
+            const answer = await this.peerConnection.createAnswer();
+            await this.peerConnection.setLocalDescription(answer);
+            
+            // Enviar answer
+            await this.enviarSeñalizacion('answer', {
+                type: answer.type,
+                sdp: answer.sdp
+            });
+            
+            // Iniciar polling
+            this.iniciarPolling();
+            
+            this.isInitiator = false;
+            this.incomingOffer = null;
+            
+        } catch (error) {
+            console.error('Error al aceptar llamada:', error);
+            alert('Error al aceptar la llamada: ' + error.message);
+            this.endCall();
+        }
+    }
+    
+    /**
+     * Rechazar llamada entrante
+     */
+    async rechazarLlamada() {
+        console.log('Rechazando llamada entrante...');
+        
+        if (this.incomingOffer) {
+            await this.enviarSeñalizacion('call-rejected', {});
+            this.incomingOffer = null;
         }
         
+        // Cerrar modal
+        if (this.modalLlamadaEntrante) {
+            if (typeof bootstrap !== 'undefined') {
+                const modal = bootstrap.Modal.getInstance(this.modalLlamadaEntrante);
+                if (modal) modal.hide();
+            } else {
+                this.modalLlamadaEntrante.style.display = 'none';
+                this.modalLlamadaEntrante.classList.remove('show');
+            }
+        }
+    }
+    
+    /**
+     * Toggle audio (mute/unmute)
+     */
+    toggleAudio() {
+        if (this.localStream) {
+            const audioTrack = this.localStream.getAudioTracks()[0];
+            if (audioTrack) {
+                audioTrack.enabled = !audioTrack.enabled;
+                this.isAudioMuted = !audioTrack.enabled;
+                
+                if (this.btnToggleAudio) {
+                    if (this.isAudioMuted) {
+                        this.btnToggleAudio.innerHTML = '<i class="fa fa-microphone-slash"></i>';
+                        this.btnToggleAudio.classList.add('btn-danger');
+                    } else {
+                        this.btnToggleAudio.innerHTML = '<i class="fa fa-microphone"></i>';
+                        this.btnToggleAudio.classList.remove('btn-danger');
+                    }
+                }
+            }
+        }
+    }
+    
+    /**
+     * Toggle video (on/off)
+     */
+    toggleVideo() {
+        if (this.localStream) {
+            const videoTrack = this.localStream.getVideoTracks()[0];
+            if (videoTrack) {
+                videoTrack.enabled = !videoTrack.enabled;
+                this.isVideoMuted = !videoTrack.enabled;
+                
+                if (this.btnToggleVideo) {
+                    if (this.isVideoMuted) {
+                        this.btnToggleVideo.innerHTML = '<i class="fa fa-video-slash"></i>';
+                        this.btnToggleVideo.classList.add('btn-danger');
+                    } else {
+                        this.btnToggleVideo.innerHTML = '<i class="fa fa-video-camera"></i>';
+                        this.btnToggleVideo.classList.remove('btn-danger');
+                    }
+                }
+            }
+        }
+    }
+    
+    /**
+     * Terminar llamada
+     */
+    endCall() {
+        this.isInCall = false;
+        this.detenerTimer();
+        this.detenerPolling();
+        
+        // Cerrar conexión peer
+        if (this.peerConnection) {
+            this.peerConnection.close();
+            this.peerConnection = null;
+        }
+        
+        // Detener streams locales
+        if (this.localStream) {
+            this.localStream.getTracks().forEach(track => track.stop());
+            this.localStream = null;
+        }
+        
+        // Limpiar videos
+        if (this.videoLocal) {
+            this.videoLocal.srcObject = null;
+        }
+        if (this.videoRemoto) {
+            this.videoRemoto.srcObject = null;
+        }
+        
+        // Cerrar modales
+        if (this.modalVideollamada) {
+            if (typeof bootstrap !== 'undefined') {
+                const modal = bootstrap.Modal.getInstance(this.modalVideollamada);
+                if (modal) modal.hide();
+            } else {
+                this.modalVideollamada.style.display = 'none';
+                this.modalVideollamada.classList.remove('show');
+            }
+        }
+        
+        if (this.modalLlamadaEntrante) {
+            if (typeof bootstrap !== 'undefined') {
+                const modal = bootstrap.Modal.getInstance(this.modalLlamadaEntrante);
+                if (modal) modal.hide();
+            } else {
+                this.modalLlamadaEntrante.style.display = 'none';
+                this.modalLlamadaEntrante.classList.remove('show');
+            }
+        }
+        
+        // Resetear estado
+        this.isInitiator = false;
+        this.callId = null;
+        this.incomingOffer = null;
+        
+        // Resetear botones
         if (this.btnToggleAudio) {
             this.btnToggleAudio.innerHTML = '<i class="fa fa-microphone"></i>';
             this.btnToggleAudio.classList.remove('btn-danger');
@@ -1380,64 +824,69 @@ class VideoCall {
             this.btnToggleVideo.classList.remove('btn-danger');
         }
         
+        this.ocultarEstado();
+    }
+    
+    /**
+     * Mostrar modal de videollamada
+     */
+    mostrarModal() {
+        if (this.modalVideollamada) {
+            if (typeof bootstrap !== 'undefined') {
+                const modal = new bootstrap.Modal(this.modalVideollamada, {
+                    backdrop: false,
+                    keyboard: true
+                });
+                modal.show();
+            } else {
+                this.modalVideollamada.style.display = 'block';
+                this.modalVideollamada.classList.add('show');
+            }
+        }
+    }
+    
+    /**
+     * Actualizar estado de la videollamada
+     */
+    actualizarEstado(mensaje) {
+        if (this.estadoVideollamada) {
+            this.estadoVideollamada.innerHTML = `
+                <i class="fa fa-spinner fa-spin fa-3x mb-3"></i>
+                <h5>${mensaje}</h5>
+            `;
+            this.estadoVideollamada.style.display = 'block';
+        }
+    }
+    
+    /**
+     * Ocultar estado
+     */
+    ocultarEstado() {
         if (this.estadoVideollamada) {
             this.estadoVideollamada.style.display = 'none';
         }
-        this.isInitiator = false;
-        this.callId = null;
     }
     
-    closeModalManually() {
-        if (this.modalVideollamada) {
-            this.modalVideollamada.style.display = 'none';
-            this.modalVideollamada.classList.remove('show');
-            
-            // NO remover clases del body que no agregamos
-            // document.body.classList.remove('modal-open');
-            
-            // NO remover backdrops que no creamos
-            // const backdrops = document.querySelectorAll('.modal-backdrop');
-            // backdrops.forEach(backdrop => {
-            //     backdrop.remove();
-            // });
-            
-            // NO modificar estilos del body
-            // document.body.style.overflow = '';
-            // document.body.style.paddingRight = '';
-        }
-    }
-    
-    showModalManually() {
-        if (this.modalVideollamada) {
-            this.modalVideollamada.style.display = 'block';
-            this.modalVideollamada.classList.add('show');
-            
-            // NO bloquear el scroll del body
-            // document.body.classList.add('modal-open');
-            
-            // NO crear backdrop que oscurezca la pantalla
-            // if (!document.querySelector('.modal-backdrop')) {
-            //     const backdrop = document.createElement('div');
-            //     backdrop.className = 'modal-backdrop fade show';
-            //     backdrop.style.zIndex = '1040';
-            //     document.body.appendChild(backdrop);
-            // }
-        }
-    }
-    
-    startCallTimer() {
+    /**
+     * Iniciar timer de llamada
+     */
+    iniciarTimer() {
         this.callStartTime = Date.now();
         this.callTimer = setInterval(() => {
             if (this.tiempoVideollamada) {
                 const elapsed = Math.floor((Date.now() - this.callStartTime) / 1000);
                 const minutes = Math.floor(elapsed / 60);
                 const seconds = elapsed % 60;
-                this.tiempoVideollamada.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                this.tiempoVideollamada.textContent = 
+                    `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
             }
         }, 1000);
     }
     
-    stopCallTimer() {
+    /**
+     * Detener timer
+     */
+    detenerTimer() {
         if (this.callTimer) {
             clearInterval(this.callTimer);
             this.callTimer = null;
@@ -1448,4 +897,5 @@ class VideoCall {
     }
 }
 
+// Exportar para uso global
 window.VideoCall = VideoCall;
