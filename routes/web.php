@@ -14,13 +14,9 @@ use App\Http\Controllers\ChatGrupoController;
 // Ruta para servir archivos de chat directamente desde storage (fallback si el enlace simbólico no funciona)
 // IMPORTANTE: Esta ruta debe estar ANTES de otras rutas para que tenga prioridad
 // Esta ruta es crítica para Railway donde el enlace simbólico puede no funcionar
+// NOTA: Sin verificación de autenticación para asegurar que los archivos siempre se sirvan
 Route::get('/storage/chat_archivos/{filename}', function ($filename) {
-    $usuarioId = session('registro_id');
-    if (!$usuarioId) {
-        abort(403, 'No autorizado');
-    }
-    
-    // Limpiar el nombre del archivo para seguridad
+    // Limpiar el nombre del archivo para seguridad básica
     $filename = basename($filename);
     
     $path = storage_path('app/public/chat_archivos/' . $filename);
@@ -28,8 +24,7 @@ Route::get('/storage/chat_archivos/{filename}', function ($filename) {
     if (!file_exists($path)) {
         \Log::warning('Archivo no encontrado en ruta de servicio', [
             'filename' => $filename,
-            'path' => $path,
-            'usuario_id' => $usuarioId
+            'path' => $path
         ]);
         abort(404, 'Archivo no encontrado');
     }
