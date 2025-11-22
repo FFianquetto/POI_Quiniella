@@ -192,18 +192,7 @@ class ChatController extends Controller
             }
             
             // Generar nombre único para el archivo
-            // Usar el nombre original del archivo para mantener la extensión correcta
-            $nombreOriginal = $archivo->getClientOriginalName();
-            $extension = $archivo->getClientOriginalExtension();
-            $nombreSinExtension = pathinfo($nombreOriginal, PATHINFO_FILENAME);
-            $nombreArchivo = time() . '_' . uniqid() . '_' . $nombreSinExtension . '.' . $extension;
-            
-            // Asegurar que el directorio existe
-            $directPath = storage_path('app/public/chat_archivos');
-            if (!is_dir($directPath)) {
-                @mkdir($directPath, 0755, true);
-                \Log::info('Directorio creado', ['path' => $directPath]);
-            }
+            $nombreArchivo = time() . '_' . uniqid() . '_' . $archivo->getClientOriginalName();
             
             // Guardar archivo en el disco 'public'
             // storeAs devuelve la ruta relativa desde storage/app/public/
@@ -211,99 +200,52 @@ class ChatController extends Controller
             
             try {
                 $rutaRelativa = $archivo->storeAs('chat_archivos', $nombreArchivo, 'public');
-                \Log::info('Archivo guardado con storeAs', [
-                    'ruta_relativa' => $rutaRelativa,
-                    'nombre_archivo' => $nombreArchivo,
-                    'ruta_completa' => storage_path('app/public/' . $rutaRelativa),
-                    'existe' => file_exists(storage_path('app/public/' . $rutaRelativa))
-                ]);
             } catch (\Exception $e) {
-                \Log::error('Error al guardar con storeAs', [
-                    'error' => $e->getMessage(),
-                    'trace' => $e->getTraceAsString()
-                ]);
+                \Log::error('Error al guardar con storeAs', ['error' => $e->getMessage()]);
             }
             
             // Si storeAs falla, intentar método alternativo
-            if (!$rutaRelativa || !file_exists(storage_path('app/public/' . $rutaRelativa))) {
+            if (!$rutaRelativa) {
                 try {
-                    $rutaCompleta = $directPath . '/' . $nombreArchivo;
-                    
-                    // Intentar mover o copiar el archivo
-                    $guardado = false;
-                    if ($archivo->isValid()) {
-                        if (@move_uploaded_file($archivo->getRealPath(), $rutaCompleta)) {
-                            $guardado = true;
-                        } elseif (@copy($archivo->getRealPath(), $rutaCompleta)) {
-                            $guardado = true;
-                        } elseif (file_put_contents($rutaCompleta, file_get_contents($archivo->getRealPath()))) {
-                            $guardado = true;
-                        }
+                    $directPath = storage_path('app/public/chat_archivos');
+                    if (!is_dir($directPath)) {
+                        @mkdir($directPath, 0755, true);
                     }
-                    
-                    if ($guardado && file_exists($rutaCompleta)) {
+                    $rutaCompleta = $directPath . '/' . $nombreArchivo;
+                    if (@move_uploaded_file($archivo->getRealPath(), $rutaCompleta) || @copy($archivo->getRealPath(), $rutaCompleta)) {
                         $rutaRelativa = 'chat_archivos/' . $nombreArchivo;
-                        \Log::info('Archivo guardado con método alternativo', [
-                            'ruta' => $rutaRelativa,
-                            'ruta_completa' => $rutaCompleta,
-                            'tamaño' => filesize($rutaCompleta)
-                        ]);
+                        \Log::info('Archivo guardado con método alternativo', ['ruta' => $rutaRelativa]);
                     } else {
-                        \Log::error('No se pudo guardar el archivo con ningún método', [
-                            'ruta_intentada' => $rutaCompleta,
-                            'archivo_valido' => $archivo->isValid(),
-                            'ruta_temporal' => $archivo->getRealPath(),
-                            'existe_temporal' => file_exists($archivo->getRealPath())
-                        ]);
+                        \Log::error('No se pudo guardar el archivo con ningún método');
+                        // Continuar de todas formas, el mensaje se guardará sin archivo
                     }
                 } catch (\Exception $e) {
-                    \Log::error('Error en método alternativo de guardado', [
-                        'error' => $e->getMessage(),
-                        'trace' => $e->getTraceAsString()
-                    ]);
+                    \Log::error('Error en método alternativo de guardado', ['error' => $e->getMessage()]);
                 }
             }
             
             // Generar URL pública para el archivo solo si se guardó correctamente
             if ($rutaRelativa) {
-                // Verificar que el archivo realmente existe
-                $rutaCompletaArchivo = storage_path('app/public/' . $rutaRelativa);
-                if (!file_exists($rutaCompletaArchivo)) {
-                    \Log::error('Archivo no existe después de guardar', [
-                        'ruta_relativa' => $rutaRelativa,
-                        'ruta_completa' => $rutaCompletaArchivo
-                    ]);
-                    $mensajeData['archivo_url'] = null;
-                    $mensajeData['archivo_nombre'] = $archivo->getClientOriginalName() . ' (no disponible)';
-                } else {
-                    // Usar la ruta de servicio que siempre funciona (definida en web.php)
-                    $baseUrl = rtrim(config('app.url', env('APP_URL', '')), '/');
-                    $nombreArchivoFinal = basename($rutaRelativa);
-                    
-                    // Usar la ruta de servicio de archivos que está configurada en web.php
-                    // Usamos /archivos/chat/ en lugar de /storage/ para evitar conflictos con nginx
-                    // Esta ruta maneja correctamente los tipos MIME y el streaming
-                    $mensajeData['archivo_url'] = $baseUrl . '/archivos/chat/' . urlencode($nombreArchivoFinal);
-                    
-                    $mensajeData['archivo_nombre'] = $archivo->getClientOriginalName();
-                    
-                    \Log::info('URL generada para archivo', [
-                        'ruta_relativa' => $rutaRelativa,
-                        'nombre_archivo_final' => $nombreArchivoFinal,
-                        'archivo_url' => $mensajeData['archivo_url'],
-                        'ruta_completa' => $rutaCompletaArchivo,
-                        'existe' => file_exists($rutaCompletaArchivo),
-                        'tamaño' => filesize($rutaCompletaArchivo),
-                        'tipo' => $mensajeData['tipo']
-                    ]);
-                }
+                // Usar la ruta de servicio que siempre funciona (definida en web.php)
+                $baseUrl = rtrim(config('app.url', env('APP_URL', '')), '/');
+                $nombreArchivoFinal = basename($rutaRelativa);
+                
+                // Usar la ruta de servicio de archivos que está configurada en web.php
+                // Esta ruta maneja correctamente los tipos MIME y el streaming
+                // No usar urlencode aquí, la ruta ya maneja la decodificación
+                $mensajeData['archivo_url'] = $baseUrl . '/storage/chat_archivos/' . $nombreArchivoFinal;
+                
+                $mensajeData['archivo_nombre'] = $archivo->getClientOriginalName();
+                
+                \Log::info('URL generada para archivo', [
+                    'ruta_relativa' => $rutaRelativa,
+                    'nombre_archivo_final' => $nombreArchivoFinal,
+                    'archivo_url' => $mensajeData['archivo_url'],
+                    'tipo' => $mensajeData['tipo']
+                ]);
             } else {
                 // Si no se pudo guardar el archivo, continuar sin archivo pero guardar el mensaje
-                \Log::warning('Archivo no se pudo guardar, pero continuando con el mensaje sin archivo', [
-                    'nombre_original' => $archivo->getClientOriginalName(),
-                    'tamaño' => $archivo->getSize(),
-                    'tipo_mime' => $archivo->getMimeType()
-                ]);
+                \Log::warning('Archivo no se pudo guardar, pero continuando con el mensaje sin archivo');
                 $mensajeData['archivo_url'] = null;
                 $mensajeData['archivo_nombre'] = $archivo->getClientOriginalName() . ' (no disponible)';
             }

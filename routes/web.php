@@ -14,11 +14,8 @@ use App\Http\Controllers\ChatGrupoController;
 // Ruta para servir archivos de chat directamente desde storage (fallback si el enlace simbólico no funciona)
 // IMPORTANTE: Esta ruta debe estar ANTES de otras rutas para que tenga prioridad
 // Esta ruta es crítica para Railway donde el enlace simbólico puede no funcionar
-// NOTA: Usamos /archivos/chat/ en lugar de /storage/ para evitar conflictos con nginx
 // NOTA: Sin verificación de autenticación para asegurar que los archivos siempre se sirvan
-
-// Función helper para servir archivos
-$serveFile = function ($filename) {
+Route::get('/storage/chat_archivos/{filename}', function ($filename) {
     // Decodificar el nombre del archivo (por si viene codificado)
     $filename = urldecode($filename);
     // Limpiar el nombre del archivo para seguridad básica
@@ -26,27 +23,15 @@ $serveFile = function ($filename) {
     
     $path = storage_path('app/public/chat_archivos/' . $filename);
     
-    // Log para depuración
-    \Log::info('Intentando servir archivo', [
-        'filename' => $filename,
-        'path' => $path,
-        'exists' => file_exists($path),
-        'dir_exists' => file_exists(storage_path('app/public/chat_archivos')),
-        'files_in_dir' => file_exists(storage_path('app/public/chat_archivos')) 
-            ? array_slice(scandir(storage_path('app/public/chat_archivos')), 2) 
-            : []
-    ]);
-    
     if (!file_exists($path)) {
         \Log::warning('Archivo no encontrado en ruta de servicio', [
             'filename' => $filename,
             'path' => $path,
-            'dir_exists' => file_exists(storage_path('app/public/chat_archivos')),
             'files_in_dir' => file_exists(storage_path('app/public/chat_archivos')) 
-                ? array_slice(scandir(storage_path('app/public/chat_archivos')), 2) 
-                : []
+                ? count(glob(storage_path('app/public/chat_archivos/*'))) 
+                : 0
         ]);
-        abort(404, 'Archivo no encontrado: ' . $filename);
+        abort(404, 'Archivo no encontrado');
     }
     
     \Log::info('Sirviendo archivo desde ruta de fallback', [
@@ -199,10 +184,7 @@ $serveFile = function ($filename) {
     }
     
     return response()->file($path, $headers);
-};
-
-// Definir las rutas usando la función helper
-Route::get('/archivos/chat/{filename}', $serveFile)->name('chat.archivo.serve');
+})->name('chat.archivo.serve');
 
 Route::get('/', function () {
     return redirect()->route('auth.login');
