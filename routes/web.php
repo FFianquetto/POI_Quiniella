@@ -99,7 +99,7 @@ Route::get('/storage/chat_archivos/{filename}', function ($filename) {
         'm4a' => 'audio/mp4',
         'aac' => 'audio/aac',
         // Video
-        'mp4' => 'video/mp4',
+        'mp4' => 'video/mp4', // Por defecto video, pero puede ser audio (M4A)
         'avi' => 'video/x-msvideo',
         'mov' => 'video/quicktime',
         'wmv' => 'video/x-ms-wmv',
@@ -130,6 +130,17 @@ Route::get('/storage/chat_archivos/{filename}', function ($filename) {
                 // Por defecto, intentar como video webm
                 $mimeType = 'video/webm;codecs=vp8,opus';
             }
+        }
+    } else if ($extension === 'mp4') {
+        // Para MP4, verificar si es audio (M4A) o video
+        $filenameLower = strtolower($filename);
+        if (strpos($filenameLower, 'audio') !== false || strpos($filenameLower, 'm4a') !== false) {
+            $mimeType = 'audio/mp4';
+        } else if ($detectedMimeType && strpos($detectedMimeType, 'audio') !== false) {
+            $mimeType = 'audio/mp4';
+        } else {
+            // Por defecto, video MP4
+            $mimeType = 'video/mp4';
         }
     } else {
         // Usar el tipo MIME detectado o el mapeo por extensión

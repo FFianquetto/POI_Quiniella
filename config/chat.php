@@ -14,7 +14,7 @@ return [
     'allowed_file_types' => [
         'imagen' => ['jpg', 'jpeg', 'png', 'gif', 'webp'],
         'video' => ['mp4', 'avi', 'mov', 'wmv', 'flv', 'webm'],
-        'audio' => ['mp3', 'wav', 'ogg', 'm4a', 'webm'],
+        'audio' => ['mp3', 'wav', 'ogg', 'm4a', 'webm', 'mp4'], // MP4 también puede ser audio (M4A)
         'archivo' => ['pdf', 'doc', 'docx', 'txt', 'zip', 'rar']
     ],
 
