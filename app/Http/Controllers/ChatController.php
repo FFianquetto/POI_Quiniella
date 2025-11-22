@@ -159,26 +159,36 @@ class ChatController extends Controller
         if ($request->hasFile('archivo')) {
             $archivo = $request->file('archivo');
             
-            // Validar tipo de archivo
-            $extension = strtolower($archivo->getClientOriginalExtension());
-            $allowedTypes = config('chat.allowed_file_types');
-            $tipoValido = false;
-            
-            foreach ($allowedTypes as $tipo => $extensiones) {
-                if (in_array($extension, $extensiones)) {
-                    $mensajeData['tipo'] = $tipo;
-                    $tipoValido = true;
-                    break;
-                }
-            }
-            
-            if (!$tipoValido) {
-                // Si el tipo no es válido, intentar usar el tipo del request o 'archivo' por defecto
-                \Log::warning('Tipo de archivo no reconocido, usando tipo por defecto', [
-                    'extension' => $extension,
-                    'tipo_request' => $request->tipo
+            // Si el request ya especifica el tipo (audio/video), usarlo directamente
+            // Esto es importante para archivos grabados donde el tipo ya está determinado
+            if ($request->tipo && in_array($request->tipo, ['audio', 'video', 'imagen'])) {
+                $mensajeData['tipo'] = $request->tipo;
+                \Log::info('Tipo de mensaje establecido desde request', [
+                    'tipo' => $request->tipo,
+                    'archivo_nombre' => $archivo->getClientOriginalName()
                 ]);
-                $mensajeData['tipo'] = $request->tipo ?? 'archivo';
+            } else {
+                // Si no hay tipo en el request, detectarlo por extensión
+                $extension = strtolower($archivo->getClientOriginalExtension());
+                $allowedTypes = config('chat.allowed_file_types');
+                $tipoValido = false;
+                
+                foreach ($allowedTypes as $tipo => $extensiones) {
+                    if (in_array($extension, $extensiones)) {
+                        $mensajeData['tipo'] = $tipo;
+                        $tipoValido = true;
+                        break;
+                    }
+                }
+                
+                if (!$tipoValido) {
+                    // Si el tipo no es válido, usar 'archivo' por defecto
+                    \Log::warning('Tipo de archivo no reconocido, usando tipo por defecto', [
+                        'extension' => $extension,
+                        'tipo_request' => $request->tipo
+                    ]);
+                    $mensajeData['tipo'] = $request->tipo ?? 'archivo';
+                }
             }
             
             // Generar nombre único para el archivo

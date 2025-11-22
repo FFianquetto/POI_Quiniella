@@ -607,6 +607,16 @@
     border-radius: 8px;
     outline: none;
     background: transparent;
+    display: block;
+}
+
+/* Asegurar que el audio se muestre correctamente y no como video */
+.message-media audio {
+    display: block;
+    width: 100%;
+    min-width: 250px;
+    max-width: 100%;
+    height: 45px;
 }
 
 .message-own .message-media .audio-player {
@@ -615,6 +625,20 @@
 
 .message-other .message-media .audio-player {
     filter: brightness(0.95);
+}
+
+/* Ocultar controles de video en elementos de audio */
+.message-media audio::-webkit-media-controls-panel {
+    background-color: rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+}
+
+.message-own .message-media audio::-webkit-media-controls-panel {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+.message-other .message-media audio::-webkit-media-controls-panel {
+    background-color: rgba(0, 0, 0, 0.05);
 }
 
 /* Reproductor de video mejorado */
@@ -949,6 +973,16 @@ document.addEventListener('DOMContentLoaded', function() {
             };
             
             mediaRecorder.onstop = function() {
+                // Asegurarse de que hay chunks antes de crear el Blob
+                if (audioChunks.length === 0) {
+                    console.error('No hay chunks de audio para crear el archivo');
+                    alert('Error: No se pudo grabar el audio. Intenta de nuevo.');
+                    btnAudio.disabled = false;
+                    btnAudio.innerHTML = '<i class="fa fa-microphone"></i>';
+                    controlesGrabacion.style.display = 'none';
+                    return;
+                }
+                
                 // Obtener el tipo MIME real que se usó
                 const actualMimeType = mediaRecorder.mimeType || mimeType;
                 console.log('Audio grabado con tipo MIME real:', actualMimeType);
@@ -964,13 +998,40 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 
                 const audioBlob = new Blob(audioChunks, { type: actualMimeType });
+                
+                // Verificar que el Blob tenga contenido
+                if (audioBlob.size === 0) {
+                    console.error('El Blob de audio está vacío');
+                    alert('Error: El audio grabado está vacío. Intenta de nuevo.');
+                    btnAudio.disabled = false;
+                    btnAudio.innerHTML = '<i class="fa fa-microphone"></i>';
+                    controlesGrabacion.style.display = 'none';
+                    return;
+                }
+                
                 const audioFile = new File([audioBlob], 'audio_grabado_' + Date.now() + '.' + actualExtension, { type: actualMimeType });
+                
+                console.log('Archivo de audio creado:', {
+                    name: audioFile.name,
+                    type: audioFile.type,
+                    size: audioFile.size,
+                    chunks: audioChunks.length
+                });
+                
+                // Establecer el tipo ANTES de asignar el archivo
+                mensajeTipo.value = 'audio';
                 
                 const dataTransfer = new DataTransfer();
                 dataTransfer.items.add(audioFile);
                 archivoInput.files = dataTransfer.files;
                 
-                mensajeTipo.value = 'audio';
+                console.log('Archivo asignado al input:', {
+                    hasFile: archivoInput.files.length > 0,
+                    fileName: archivoInput.files[0]?.name,
+                    fileType: archivoInput.files[0]?.type,
+                    fileSize: archivoInput.files[0]?.size
+                });
+                
                 controlesGrabacion.style.display = 'none';
                 clearInterval(recordingInterval);
                 
@@ -1065,6 +1126,15 @@ document.addEventListener('DOMContentLoaded', function() {
                     };
                     
                     mediaRecorder.onstop = function() {
+                        // Asegurarse de que hay chunks antes de crear el Blob
+                        if (videoChunks.length === 0) {
+                            console.error('No hay chunks de video para crear el archivo');
+                            alert('Error: No se pudo grabar el video. Intenta de nuevo.');
+                            btnGrabarVideo.style.display = 'block';
+                            btnDetenerVideo.style.display = 'none';
+                            return;
+                        }
+                        
                         // Obtener el tipo MIME real que se usó
                         const actualMimeType = mediaRecorder.mimeType || mimeType;
                         console.log('Video grabado con tipo MIME real:', actualMimeType);
@@ -1078,13 +1148,39 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
                         
                         const videoBlob = new Blob(videoChunks, { type: actualMimeType });
+                        
+                        // Verificar que el Blob tenga contenido
+                        if (videoBlob.size === 0) {
+                            console.error('El Blob de video está vacío');
+                            alert('Error: El video grabado está vacío. Intenta de nuevo.');
+                            btnGrabarVideo.style.display = 'block';
+                            btnDetenerVideo.style.display = 'none';
+                            return;
+                        }
+                        
                         const videoFile = new File([videoBlob], 'video_grabado_' + Date.now() + '.' + actualExtension, { type: actualMimeType });
+                        
+                        console.log('Archivo de video creado:', {
+                            name: videoFile.name,
+                            type: videoFile.type,
+                            size: videoFile.size,
+                            chunks: videoChunks.length
+                        });
+                        
+                        // Establecer el tipo ANTES de asignar el archivo
+                        mensajeTipo.value = 'video';
                         
                         const dataTransfer = new DataTransfer();
                         dataTransfer.items.add(videoFile);
                         archivoInput.files = dataTransfer.files;
                         
-                        mensajeTipo.value = 'video';
+                        console.log('Archivo asignado al input:', {
+                            hasFile: archivoInput.files.length > 0,
+                            fileName: archivoInput.files[0]?.name,
+                            fileType: archivoInput.files[0]?.type,
+                            fileSize: archivoInput.files[0]?.size
+                        });
+                        
                         modal.hide();
                         
                         const mensajeTexto = document.getElementById('mensaje-texto');
