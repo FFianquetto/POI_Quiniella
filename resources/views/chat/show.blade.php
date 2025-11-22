@@ -76,20 +76,33 @@
                                         @elseif($mensaje->tipo === 'video')
                                             <div class="message-media">
                                                 @if($mensaje->archivo_url)
-                                                    <video controls class="img-fluid rounded" style="max-width: 300px;" preload="metadata">
-                                                        <source src="{{ $mensaje->archivo_url }}" type="video/mp4">
-                                                        <source src="{{ $mensaje->archivo_url }}" type="video/webm">
-                                                        <source src="{{ $mensaje->archivo_url }}" type="video/ogg">
-                                                        <p>Tu navegador no soporta el elemento video. 
-                                                            <a href="{{ $mensaje->archivo_url }}" target="_blank" download>Descargar video</a>
-                                                        </p>
+                                                    @php
+                                                        $extension = strtolower(pathinfo($mensaje->archivo_nombre, PATHINFO_EXTENSION));
+                                                        $mimeTypes = [
+                                                            'mp4' => 'video/mp4',
+                                                            'webm' => 'video/webm',
+                                                            'ogg' => 'video/ogg',
+                                                            'avi' => 'video/x-msvideo',
+                                                            'mov' => 'video/quicktime',
+                                                            'wmv' => 'video/x-ms-wmv',
+                                                            'flv' => 'video/x-flv'
+                                                        ];
+                                                        $mimeType = $mimeTypes[$extension] ?? 'video/mp4';
+                                                    @endphp
+                                                    <video controls class="img-fluid rounded video-player" style="max-width: 300px; max-height: 400px; object-fit: contain; display: block;" preload="metadata" playsinline>
+                                                        <source src="{{ $mensaje->archivo_url }}" type="{{ $mimeType }}">
+                                                        @if($mimeType !== 'video/mp4')
+                                                            <source src="{{ $mensaje->archivo_url }}" type="video/mp4">
+                                                        @endif
+                                                        @if($mimeType !== 'video/webm')
+                                                            <source src="{{ $mensaje->archivo_url }}" type="video/webm">
+                                                        @endif
+                                                        @if($mimeType !== 'video/ogg')
+                                                            <source src="{{ $mensaje->archivo_url }}" type="video/ogg">
+                                                        @endif
+                                                        Tu navegador no soporta el elemento video.
                                                     </video>
-                                                    <small class="d-block mt-1">
-                                                        {{ $mensaje->archivo_nombre }}
-                                                        <a href="{{ $mensaje->archivo_url }}" target="_blank" download class="ms-2 text-decoration-none">
-                                                            <i class="fa fa-download"></i> Descargar
-                                                        </a>
-                                                    </small>
+                                                    <small class="d-block mt-1 text-muted" style="font-size: 0.75rem;">{{ $mensaje->archivo_nombre }}</small>
                                                 @else
                                                     <div class="alert alert-warning">Video no disponible</div>
                                                 @endif
@@ -97,21 +110,35 @@
                                         @elseif($mensaje->tipo === 'audio')
                                             <div class="message-media">
                                                 @if($mensaje->archivo_url)
-                                                    <audio controls class="w-100" preload="metadata">
-                                                        <source src="{{ $mensaje->archivo_url }}" type="audio/mpeg">
-                                                        <source src="{{ $mensaje->archivo_url }}" type="audio/webm">
-                                                        <source src="{{ $mensaje->archivo_url }}" type="audio/ogg">
-                                                        <source src="{{ $mensaje->archivo_url }}" type="audio/wav">
-                                                        <p>Tu navegador no soporta el elemento audio. 
-                                                            <a href="{{ $mensaje->archivo_url }}" target="_blank" download>Descargar audio</a>
-                                                        </p>
+                                                    @php
+                                                        $extension = strtolower(pathinfo($mensaje->archivo_nombre, PATHINFO_EXTENSION));
+                                                        $mimeTypes = [
+                                                            'mp3' => 'audio/mpeg',
+                                                            'wav' => 'audio/wav',
+                                                            'ogg' => 'audio/ogg',
+                                                            'webm' => 'audio/webm',
+                                                            'm4a' => 'audio/mp4',
+                                                            'aac' => 'audio/aac'
+                                                        ];
+                                                        $mimeType = $mimeTypes[$extension] ?? 'audio/mpeg';
+                                                    @endphp
+                                                    <audio controls class="w-100 audio-player" preload="metadata" style="outline: none; width: 100%; min-width: 250px;">
+                                                        <source src="{{ $mensaje->archivo_url }}" type="{{ $mimeType }}">
+                                                        @if($mimeType !== 'audio/mpeg')
+                                                            <source src="{{ $mensaje->archivo_url }}" type="audio/mpeg">
+                                                        @endif
+                                                        @if($mimeType !== 'audio/webm')
+                                                            <source src="{{ $mensaje->archivo_url }}" type="audio/webm">
+                                                        @endif
+                                                        @if($mimeType !== 'audio/ogg')
+                                                            <source src="{{ $mensaje->archivo_url }}" type="audio/ogg">
+                                                        @endif
+                                                        @if($mimeType !== 'audio/wav')
+                                                            <source src="{{ $mensaje->archivo_url }}" type="audio/wav">
+                                                        @endif
+                                                        Tu navegador no soporta el elemento audio.
                                                     </audio>
-                                                    <small class="d-block mt-1">
-                                                        {{ $mensaje->archivo_nombre }}
-                                                        <a href="{{ $mensaje->archivo_url }}" target="_blank" download class="ms-2 text-decoration-none">
-                                                            <i class="fa fa-download"></i> Descargar
-                                                        </a>
-                                                    </small>
+                                                    <small class="d-block mt-1 text-muted" style="font-size: 0.75rem;">{{ $mensaje->archivo_nombre }}</small>
                                                 @else
                                                     <div class="alert alert-warning">Audio no disponible</div>
                                                 @endif
@@ -424,6 +451,42 @@
 .message-media audio {
     border-radius: 20px;
     background: rgba(255,255,255,0.1);
+    width: 100%;
+    height: 40px;
+    outline: none;
+}
+
+.message-media .audio-player {
+    width: 100%;
+    min-width: 250px;
+    height: 40px;
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.1);
+    outline: none;
+}
+
+.message-own .message-media .audio-player {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.message-other .message-media .audio-player {
+    background: rgba(0, 0, 0, 0.05);
+}
+
+.message-media .video-player {
+    border-radius: 8px;
+    background: #000;
+    outline: none;
+    display: block;
+}
+
+.message-media video::-webkit-media-controls-panel {
+    background-color: rgba(0, 0, 0, 0.5);
+}
+
+.message-media video::-webkit-media-controls-play-button {
+    background-color: rgba(255, 255, 255, 0.8);
+    border-radius: 50%;
 }
 
 #controles-grabacion {

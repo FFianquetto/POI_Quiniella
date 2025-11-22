@@ -83,7 +83,36 @@ Route::get('/storage/chat_archivos/{filename}', function ($filename) {
         abort(404, 'Archivo no encontrado');
     }
     
-    return response()->file($path);
+    // Detectar el tipo MIME basado en la extensión
+    $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+    $mimeTypes = [
+        // Audio
+        'mp3' => 'audio/mpeg',
+        'wav' => 'audio/wav',
+        'ogg' => 'audio/ogg',
+        'webm' => 'audio/webm',
+        'm4a' => 'audio/mp4',
+        'aac' => 'audio/aac',
+        // Video
+        'mp4' => 'video/mp4',
+        'avi' => 'video/x-msvideo',
+        'mov' => 'video/quicktime',
+        'wmv' => 'video/x-ms-wmv',
+        'flv' => 'video/x-flv',
+        // Imágenes
+        'jpg' => 'image/jpeg',
+        'jpeg' => 'image/jpeg',
+        'png' => 'image/png',
+        'gif' => 'image/gif',
+        'webp' => 'image/webp',
+    ];
+    
+    $mimeType = $mimeTypes[$extension] ?? 'application/octet-stream';
+    
+    return response()->file($path, [
+        'Content-Type' => $mimeType,
+        'Accept-Ranges' => 'bytes',
+    ]);
 })->name('chat.archivo.serve');
 
 // Rutas para videollamadas
