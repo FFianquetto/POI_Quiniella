@@ -16,7 +16,9 @@ use App\Http\Controllers\ChatGrupoController;
 // Esta ruta es crítica para Railway donde el enlace simbólico puede no funcionar
 // NOTA: Usamos /archivos/chat/ en lugar de /storage/ para evitar conflictos con nginx
 // NOTA: Sin verificación de autenticación para asegurar que los archivos siempre se sirvan
-Route::get('/archivos/chat/{filename}', function ($filename) {
+
+// Función helper para servir archivos
+$serveFile = function ($filename) {
     // Decodificar el nombre del archivo (por si viene codificado)
     $filename = urldecode($filename);
     // Limpiar el nombre del archivo para seguridad básica
@@ -197,7 +199,10 @@ Route::get('/archivos/chat/{filename}', function ($filename) {
     }
     
     return response()->file($path, $headers);
-})->name('chat.archivo.serve');
+};
+
+// Definir las rutas usando la función helper
+Route::get('/archivos/chat/{filename}', $serveFile)->name('chat.archivo.serve');
 
 Route::get('/', function () {
     return redirect()->route('auth.login');
