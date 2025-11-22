@@ -281,8 +281,9 @@ class ChatController extends Controller
                     $nombreArchivoFinal = basename($rutaRelativa);
                     
                     // Usar la ruta de servicio de archivos que está configurada en web.php
+                    // Usamos /archivos/chat/ en lugar de /storage/ para evitar conflictos con nginx
                     // Esta ruta maneja correctamente los tipos MIME y el streaming
-                    $mensajeData['archivo_url'] = $baseUrl . '/storage/chat_archivos/' . urlencode($nombreArchivoFinal);
+                    $mensajeData['archivo_url'] = $baseUrl . '/archivos/chat/' . urlencode($nombreArchivoFinal);
                     
                     $mensajeData['archivo_nombre'] = $archivo->getClientOriginalName();
                     
