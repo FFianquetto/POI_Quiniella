@@ -16,6 +16,8 @@ use App\Http\Controllers\ChatGrupoController;
 // Esta ruta es crítica para Railway donde el enlace simbólico puede no funcionar
 // NOTA: Sin verificación de autenticación para asegurar que los archivos siempre se sirvan
 Route::get('/storage/chat_archivos/{filename}', function ($filename) {
+    // Decodificar el nombre del archivo (por si viene codificado)
+    $filename = urldecode($filename);
     // Limpiar el nombre del archivo para seguridad básica
     $filename = basename($filename);
     
@@ -24,7 +26,10 @@ Route::get('/storage/chat_archivos/{filename}', function ($filename) {
     if (!file_exists($path)) {
         \Log::warning('Archivo no encontrado en ruta de servicio', [
             'filename' => $filename,
-            'path' => $path
+            'path' => $path,
+            'files_in_dir' => file_exists(storage_path('app/public/chat_archivos')) 
+                ? count(glob(storage_path('app/public/chat_archivos/*'))) 
+                : 0
         ]);
         abort(404, 'Archivo no encontrado');
     }
@@ -105,6 +110,9 @@ Route::get('/storage/chat_archivos/{filename}', function ($filename) {
         'Content-Type' => $mimeType,
         'Accept-Ranges' => 'bytes',
         'Cache-Control' => 'public, max-age=3600',
+        'Access-Control-Allow-Origin' => '*',
+        'Access-Control-Allow-Methods' => 'GET, HEAD, OPTIONS',
+        'Access-Control-Allow-Headers' => 'Range',
     ];
     
     // Para archivos grandes (audio/video), soportar range requests para streaming

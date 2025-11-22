@@ -216,21 +216,20 @@ class ChatController extends Controller
             
             // Generar URL pública para el archivo solo si se guardó correctamente
             if ($rutaRelativa) {
-                // Intentar usar Storage::url() primero (más confiable)
-                try {
-                    $mensajeData['archivo_url'] = \Storage::disk('public')->url($rutaRelativa);
-                } catch (\Exception $e) {
-                    // Si falla, usar la ruta de fallback manual
-                    $baseUrl = rtrim(config('app.url', env('APP_URL', '')), '/');
-                    $nombreArchivoFinal = basename($rutaRelativa);
-                    $mensajeData['archivo_url'] = $baseUrl . '/storage/chat_archivos/' . $nombreArchivoFinal;
-                    \Log::warning('Usando URL de fallback para archivo', ['error' => $e->getMessage()]);
-                }
+                // Usar la ruta de servicio que siempre funciona (definida en web.php)
+                $baseUrl = rtrim(config('app.url', env('APP_URL', '')), '/');
+                $nombreArchivoFinal = basename($rutaRelativa);
+                
+                // Usar la ruta de servicio de archivos que está configurada en web.php
+                // Esta ruta maneja correctamente los tipos MIME y el streaming
+                // No usar urlencode aquí, la ruta ya maneja la decodificación
+                $mensajeData['archivo_url'] = $baseUrl . '/storage/chat_archivos/' . $nombreArchivoFinal;
                 
                 $mensajeData['archivo_nombre'] = $archivo->getClientOriginalName();
                 
                 \Log::info('URL generada para archivo', [
                     'ruta_relativa' => $rutaRelativa,
+                    'nombre_archivo_final' => $nombreArchivoFinal,
                     'archivo_url' => $mensajeData['archivo_url'],
                     'tipo' => $mensajeData['tipo']
                 ]);
@@ -284,11 +283,12 @@ class ChatController extends Controller
                     'trace' => $e2->getTraceAsString()
                 ]);
                 // Aún así intentar retornar éxito para no frustrar al usuario
-                return back()->with('warning', 'El mensaje se procesó pero puede haber errores. Revisa los logs.');
+                return redirect()->route('chat.show', $chat)->with('warning', 'El mensaje se procesó pero puede haber errores. Revisa los logs.');
             }
         }
 
-        return back()->with('success', 'Mensaje enviado correctamente.');
+        // Redirigir explícitamente al chat para evitar redirecciones incorrectas
+        return redirect()->route('chat.show', $chat)->with('success', 'Mensaje enviado correctamente.');
     }
 
     /**
