@@ -303,15 +303,27 @@ class ChatController extends Controller
                 $archivoExiste = file_exists($rutaCompleta);
                 $tamañoArchivo = $archivoExiste ? filesize($rutaCompleta) : 0;
                 
+                \Log::info('Verificando archivo guardado', [
+                    'ruta_relativa' => $rutaRelativa,
+                    'ruta_completa' => $rutaCompleta,
+                    'existe' => $archivoExiste,
+                    'tamaño' => $tamañoArchivo,
+                    'es_legible' => $archivoExiste ? is_readable($rutaCompleta) : false
+                ]);
+                
                 if (!$archivoExiste || $tamañoArchivo === 0) {
                     \Log::error('Archivo guardado pero no existe o está vacío', [
                         'ruta_relativa' => $rutaRelativa,
                         'ruta_completa' => $rutaCompleta,
                         'existe' => $archivoExiste,
-                        'tamaño' => $tamañoArchivo
+                        'tamaño' => $tamañoArchivo,
+                        'tamaño_original' => $archivo->getSize()
                     ]);
-                    $mensajeData['archivo_url'] = null;
-                    $mensajeData['archivo_nombre'] = $archivo->getClientOriginalName() . ' (error al guardar)';
+                    // NO poner null, intentar generar la URL de todas formas
+                    $baseUrl = rtrim(config('app.url', env('APP_URL', '')), '/');
+                    $nombreArchivoFinal = basename($rutaRelativa);
+                    $mensajeData['archivo_url'] = $baseUrl . '/storage/chat_archivos/' . $nombreArchivoFinal;
+                    $mensajeData['archivo_nombre'] = $archivo->getClientOriginalName();
                 } else {
                     // En Railway, usar siempre la ruta de fallback para asegurar que funcione
                     $baseUrl = rtrim(config('app.url', env('APP_URL', '')), '/');
@@ -321,38 +333,56 @@ class ChatController extends Controller
                     $mensajeData['archivo_url'] = $baseUrl . '/storage/chat_archivos/' . $nombreArchivoFinal;
                     $mensajeData['archivo_nombre'] = $archivo->getClientOriginalName();
                     
-                    \Log::info('URL generada para archivo', [
+                    \Log::info('URL generada para archivo exitosamente', [
                         'ruta_relativa' => $rutaRelativa,
                         'nombre_archivo' => $nombreArchivoFinal,
                         'archivo_url' => $mensajeData['archivo_url'],
                         'tipo' => $mensajeData['tipo'],
                         'tamaño' => $tamañoArchivo,
-                        'extension' => $extension
+                        'extension' => $extension,
+                        'base_url' => $baseUrl
                     ]);
                 }
             } else {
-                // Si no se pudo guardar el archivo, continuar sin archivo pero guardar el mensaje
-                \Log::error('Archivo no se pudo guardar', [
+                // Si no se pudo guardar el archivo, NO crear el mensaje sin archivo
+                \Log::error('Archivo no se pudo guardar - NO se creará el mensaje', [
                     'nombre_original' => $archivo->getClientOriginalName(),
                     'tamaño' => $archivo->getSize(),
                     'tipo_mime' => $archivo->getMimeType(),
-                    'error' => $archivo->getError()
+                    'error' => $archivo->getError(),
+                    'tipo_request' => $request->tipo
                 ]);
-                $mensajeData['archivo_url'] = null;
-                $mensajeData['archivo_nombre'] = $archivo->getClientOriginalName() . ' (no disponible)';
+                
+                // Retornar error en lugar de crear mensaje sin archivo
+                return redirect()->route('chat.show', ['chat' => $chat->id])
+                    ->with('error', 'No se pudo guardar el archivo de video. Por favor, intenta de nuevo.');
             }
         }
+
+        // Log antes de crear el mensaje
+        \Log::info('Datos del mensaje antes de crear', [
+            'tipo' => $mensajeData['tipo'] ?? 'no definido',
+            'tiene_archivo_url' => !empty($mensajeData['archivo_url'] ?? null),
+            'archivo_url' => $mensajeData['archivo_url'] ?? 'null',
+            'archivo_nombre' => $mensajeData['archivo_nombre'] ?? 'null',
+            'tiene_archivo_en_request' => $request->hasFile('archivo')
+        ]);
 
         // Intentar crear el mensaje de todas formas, incluso si hay errores
         try {
             $mensaje = $chat->mensajes()->create($mensajeData);
+            
+            // Recargar el mensaje para asegurar que tenemos los datos actualizados
+            $mensaje->refresh();
             
             \Log::info('Mensaje creado exitosamente', [
                 'mensaje_id' => $mensaje->id,
                 'tipo' => $mensaje->tipo,
                 'tiene_archivo' => !empty($mensaje->archivo_url),
                 'archivo_url' => $mensaje->archivo_url ?? 'sin archivo',
-                'contenido' => substr($mensaje->contenido ?? '', 0, 50)
+                'archivo_nombre' => $mensaje->archivo_nombre ?? 'sin nombre',
+                'contenido' => substr($mensaje->contenido ?? '', 0, 50),
+                'datos_originales_archivo_url' => $mensajeData['archivo_url'] ?? 'no estaba en datos'
             ]);
         } catch (\Exception $e) {
             \Log::error('Error al crear mensaje, intentando método alternativo', [

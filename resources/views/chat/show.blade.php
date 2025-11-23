@@ -75,32 +75,31 @@
                                             </div>
                                         @elseif($mensaje->tipo === 'video')
                                             <div class="message-media">
-                                                @if($mensaje->archivo_url)
+                                                @php
+                                                    // Debug: verificar qué valores tenemos
+                                                    $tieneUrl = !empty($mensaje->archivo_url);
+                                                    $tieneNombre = !empty($mensaje->archivo_nombre);
+                                                @endphp
+                                                @if($tieneUrl)
                                                     @php
-                                                        $extension = strtolower(pathinfo($mensaje->archivo_nombre, PATHINFO_EXTENSION));
+                                                        $extension = strtolower(pathinfo($mensaje->archivo_nombre ?? 'video.webm', PATHINFO_EXTENSION));
                                                         $mimeTypes = [
                                                             'mp4' => 'video/mp4',
-                                                            'webm' => 'video/webm;codecs=vp8,opus', // Especificar codec para webm
+                                                            'webm' => 'video/webm;codecs=vp8,opus',
                                                             'ogg' => 'video/ogg',
                                                             'avi' => 'video/x-msvideo',
                                                             'mov' => 'video/quicktime',
                                                             'wmv' => 'video/x-ms-wmv',
                                                             'flv' => 'video/x-flv'
                                                         ];
-                                                        // Para webm, verificar si el nombre del archivo indica que es video
-                                                        if ($extension === 'webm') {
-                                                            // Si el nombre contiene "video", es video webm
-                                                            if (stripos($mensaje->archivo_nombre, 'video') !== false) {
-                                                                $mimeType = 'video/webm;codecs=vp8,opus';
-                                                            } else {
-                                                                // Por defecto, intentar como video webm
-                                                                $mimeType = 'video/webm;codecs=vp8,opus';
-                                                            }
+                                                        // Para webm, siempre usar video/webm
+                                                        if ($extension === 'webm' || empty($extension)) {
+                                                            $mimeType = 'video/webm;codecs=vp8,opus';
                                                         } else {
-                                                            $mimeType = $mimeTypes[$extension] ?? 'video/mp4';
+                                                            $mimeType = $mimeTypes[$extension] ?? 'video/webm;codecs=vp8,opus';
                                                         }
                                                     @endphp
-                                                    <video controls class="img-fluid rounded video-player" style="max-width: 300px; max-height: 400px; object-fit: contain; display: block;" preload="metadata" playsinline crossorigin="anonymous" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\'alert alert-warning\'>Error al cargar el video. <a href=\'{{ $mensaje->archivo_url }}\' target=\'_blank\'>Intentar descargar</a></div>';">
+                                                    <video controls class="img-fluid rounded video-player" style="max-width: 300px; max-height: 400px; object-fit: contain; display: block;" preload="metadata" playsinline crossorigin="anonymous" onerror="console.error('Error al cargar video:', this.error); this.parentElement.innerHTML='<div class=\'alert alert-warning\'>Error al cargar el video. <a href=\'{{ $mensaje->archivo_url }}\' target=\'_blank\'>Intentar descargar</a></div>';">
                                                         <source src="{{ $mensaje->archivo_url }}" type="{{ $mimeType }}">
                                                         <source src="{{ $mensaje->archivo_url }}" type="video/webm">
                                                         <source src="{{ $mensaje->archivo_url }}" type="video/webm;codecs=vp8,opus">
@@ -109,9 +108,19 @@
                                                         <source src="{{ $mensaje->archivo_url }}" type="video/ogg">
                                                         Tu navegador no soporta el elemento video.
                                                     </video>
-                                                    <small class="d-block mt-1 text-muted" style="font-size: 0.75rem;">{{ $mensaje->archivo_nombre }}</small>
+                                                    <small class="d-block mt-1 text-muted" style="font-size: 0.75rem;">
+                                                        {{ $mensaje->archivo_nombre ?? 'Video grabado' }}
+                                                        @if(config('app.debug'))
+                                                            <br><small style="font-size: 0.6rem; color: #999;">URL: {{ $mensaje->archivo_url }}</small>
+                                                        @endif
+                                                    </small>
                                                 @else
-                                                    <div class="alert alert-warning">Video no disponible</div>
+                                                    <div class="alert alert-warning">
+                                                        Video no disponible
+                                                        @if(config('app.debug'))
+                                                            <br><small>Debug: URL={{ $mensaje->archivo_url ?? 'null' }}, Nombre={{ $mensaje->archivo_nombre ?? 'null' }}, Tipo={{ $mensaje->tipo }}</small>
+                                                        @endif
+                                                    </div>
                                                 @endif
                                             </div>
                                         @elseif($mensaje->tipo === 'audio')
