@@ -100,7 +100,7 @@
                                                             $mimeType = $mimeTypes[$extension] ?? 'video/mp4';
                                                         }
                                                     @endphp
-                                                    <video controls class="img-fluid rounded video-player" style="max-width: 300px; max-height: 400px; object-fit: contain; display: block;" preload="metadata" playsinline crossorigin="anonymous">
+                                                    <video controls class="img-fluid rounded video-player" style="max-width: 300px; max-height: 400px; object-fit: contain; display: block;" preload="metadata" playsinline crossorigin="anonymous" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\'alert alert-warning\'>Error al cargar el video. <a href=\'{{ $mensaje->archivo_url }}\' target=\'_blank\'>Intentar descargar</a></div>';">
                                                         <source src="{{ $mensaje->archivo_url }}" type="{{ $mimeType }}">
                                                         <source src="{{ $mensaje->archivo_url }}" type="video/webm">
                                                         <source src="{{ $mensaje->archivo_url }}" type="video/webm;codecs=vp8,opus">
@@ -951,8 +951,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 videoChunks = [];
                 
                 mediaRecorder.ondataavailable = function(event) {
-                    if (event.data.size > 0) {
+                    if (event.data && event.data.size > 0) {
                         videoChunks.push(event.data);
+                        console.log('Chunk recibido:', event.data.size, 'bytes. Total chunks:', videoChunks.length);
+                    }
+                };
+                
+                mediaRecorder.onerror = function(event) {
+                    console.error('Error en MediaRecorder:', event.error);
+                    alert('Error al grabar el video: ' + (event.error ? event.error.message : 'Error desconocido'));
+                    modal.hide();
+                    if (videoStream) {
+                        videoStream.getTracks().forEach(track => track.stop());
+                        videoStream = null;
                     }
                 };
                 
@@ -963,32 +974,97 @@ document.addEventListener('DOMContentLoaded', function() {
                         videoRecordingInterval = null;
                     }
                     
-                    // Usar el tipo MIME detectado
-                    const videoBlob = new Blob(videoChunks, { type: mimeType });
-                    const videoFile = new File([videoBlob], 'video_grabado_' + Date.now() + '.' + extension, { type: mimeType });
-                    
-                    const dataTransfer = new DataTransfer();
-                    dataTransfer.items.add(videoFile);
-                    archivoInput.files = dataTransfer.files;
-                    
-                    mensajeTipo.value = 'video';
-                    
-                    const mensajeTexto = document.getElementById('mensaje-texto');
-                    mensajeTexto.value = '🎥 Video grabado';
-                    
-                    // Cerrar modal y enviar automáticamente
-                    modal.hide();
-                    
-                    // Detener el stream
-                    if (videoStream) {
-                        videoStream.getTracks().forEach(track => track.stop());
-                        videoStream = null;
-                    }
-                    
-                    // Enviar el formulario automáticamente
-                    setTimeout(() => {
-                        chatForm.submit();
-                    }, 300);
+                    // Esperar un momento para asegurar que todos los chunks estén disponibles
+                    setTimeout(function() {
+                        // Verificar que hay chunks de video
+                        if (videoChunks.length === 0) {
+                            console.error('No hay chunks de video disponibles');
+                            alert('Error: No se pudo grabar el video. Por favor, intenta de nuevo.');
+                            modal.hide();
+                            if (videoStream) {
+                                videoStream.getTracks().forEach(track => track.stop());
+                                videoStream = null;
+                            }
+                            return;
+                        }
+                        
+                        // Usar el tipo MIME detectado
+                        const videoBlob = new Blob(videoChunks, { type: mimeType });
+                        
+                        // Verificar que el blob tiene contenido
+                        if (videoBlob.size === 0) {
+                            console.error('El blob de video está vacío');
+                            alert('Error: El video grabado está vacío. Por favor, intenta de nuevo.');
+                            modal.hide();
+                            if (videoStream) {
+                                videoStream.getTracks().forEach(track => track.stop());
+                                videoStream = null;
+                            }
+                            return;
+                        }
+                        
+                        console.log('Video grabado:', {
+                            size: videoBlob.size,
+                            type: mimeType,
+                            chunks: videoChunks.length
+                        });
+                        
+                        const videoFile = new File([videoBlob], 'video_grabado_' + Date.now() + '.' + extension, { type: mimeType });
+                        
+                        // Verificar que el archivo se creó correctamente
+                        if (!videoFile || videoFile.size === 0) {
+                            console.error('Error al crear el archivo de video');
+                            alert('Error: No se pudo crear el archivo de video. Por favor, intenta de nuevo.');
+                            modal.hide();
+                            if (videoStream) {
+                                videoStream.getTracks().forEach(track => track.stop());
+                                videoStream = null;
+                            }
+                            return;
+                        }
+                        
+                        const dataTransfer = new DataTransfer();
+                        dataTransfer.items.add(videoFile);
+                        archivoInput.files = dataTransfer.files;
+                        
+                        // Verificar que el archivo se agregó al input
+                        if (!archivoInput.files || archivoInput.files.length === 0) {
+                            console.error('Error: El archivo no se agregó al input');
+                            alert('Error: No se pudo agregar el video al formulario. Por favor, intenta de nuevo.');
+                            modal.hide();
+                            if (videoStream) {
+                                videoStream.getTracks().forEach(track => track.stop());
+                                videoStream = null;
+                            }
+                            return;
+                        }
+                        
+                        console.log('Archivo agregado al input:', {
+                            name: archivoInput.files[0].name,
+                            size: archivoInput.files[0].size,
+                            type: archivoInput.files[0].type
+                        });
+                        
+                        mensajeTipo.value = 'video';
+                        
+                        const mensajeTexto = document.getElementById('mensaje-texto');
+                        mensajeTexto.value = '🎥 Video grabado';
+                        
+                        // Cerrar modal
+                        modal.hide();
+                        
+                        // Detener el stream
+                        if (videoStream) {
+                            videoStream.getTracks().forEach(track => track.stop());
+                            videoStream = null;
+                        }
+                        
+                        // Enviar el formulario automáticamente después de un pequeño delay
+                        setTimeout(() => {
+                            console.log('Enviando formulario con video...');
+                            chatForm.submit();
+                        }, 500);
+                    }, 100); // Pequeño delay para asegurar que todos los chunks estén listos
                 };
                 
                 // Iniciar grabación automáticamente
@@ -1012,7 +1088,13 @@ document.addEventListener('DOMContentLoaded', function() {
         // Botón de detener y enviar
         btnDetenerVideo.onclick = function() {
             if (mediaRecorder && mediaRecorder.state === 'recording') {
-                mediaRecorder.stop();
+                console.log('Deteniendo grabación de video...');
+                // Solicitar todos los datos disponibles antes de detener
+                mediaRecorder.requestData();
+                // Esperar un momento y luego detener
+                setTimeout(() => {
+                    mediaRecorder.stop();
+                }, 100);
             }
         };
         

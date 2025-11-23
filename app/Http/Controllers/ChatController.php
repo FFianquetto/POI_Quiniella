@@ -196,6 +196,16 @@ class ChatController extends Controller
         if ($request->hasFile('archivo')) {
             $archivo = $request->file('archivo');
             
+            \Log::info('Archivo recibido en servidor', [
+                'nombre' => $archivo->getClientOriginalName(),
+                'tamaño' => $archivo->getSize(),
+                'tipo_mime' => $archivo->getMimeType(),
+                'extension' => $archivo->getClientOriginalExtension(),
+                'tipo_request' => $request->tipo,
+                'es_valido' => $archivo->isValid(),
+                'error' => $archivo->getError()
+            ]);
+            
             // Validar tipo de archivo
             $extension = strtolower($archivo->getClientOriginalExtension());
             $allowedTypes = config('chat.allowed_file_types');
