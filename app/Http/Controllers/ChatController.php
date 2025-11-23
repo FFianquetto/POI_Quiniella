@@ -57,20 +57,57 @@ class ChatController extends Controller
         
         $otroUsuario = $chat->otroUsuario($usuarioId);
 
-        // Marcar mensajes como leídos
-        $chat->mensajes()
+        // Obtener mensajes pendientes antes de actualizar para logging y diagnóstico
+        $mensajesPendientesEntregados = $chat->mensajes()
             ->where('registro_id_emisor', '!=', $usuarioId)
-            ->where('leido', false)
+            ->where(function($query) {
+                // Capturar tanto false como 0 y NULL para asegurar que todos los mensajes se encuentren
+                $query->where('entregado', false)
+                      ->orWhere('entregado', 0)
+                      ->orWhereNull('entregado');
+            })
+            ->get();
+
+        // Log para diagnosticar qué mensajes se están encontrando
+        \Log::info('Marcando mensajes como entregados/leídos', [
+            'chat_id' => $chat->id,
+            'usuario_id' => $usuarioId,
+            'mensajes_pendientes_entregados' => $mensajesPendientesEntregados->count(),
+            'tipos_mensajes' => $mensajesPendientesEntregados->pluck('tipo')->toArray(),
+            'ids_mensajes' => $mensajesPendientesEntregados->pluck('id')->toArray(),
+        ]);
+
+        // Marcar mensajes como leídos
+        // Usar comparación que capture false, 0 y NULL
+        $actualizadosLeidos = $chat->mensajes()
+            ->where('registro_id_emisor', '!=', $usuarioId)
+            ->where(function($query) {
+                $query->where('leido', false)
+                      ->orWhere('leido', 0)
+                      ->orWhereNull('leido');
+            })
             ->update(['leido' => true]);
 
         // Marcar mensajes como entregados
-        $chat->mensajes()
+        // El problema probablemente era que algunos mensajes (audio/video) se guardaban con entregado=NULL
+        // y la consulta original where('entregado', false) no los capturaba
+        $actualizadosEntregados = $chat->mensajes()
             ->where('registro_id_emisor', '!=', $usuarioId)
-            ->where('entregado', false)
+            ->where(function($query) {
+                $query->where('entregado', false)
+                      ->orWhere('entregado', 0)
+                      ->orWhereNull('entregado');
+            })
             ->update([
                 'entregado' => true,
                 'entregado_at' => now(),
             ]);
+
+        \Log::info('Mensajes actualizados', [
+            'chat_id' => $chat->id,
+            'leidos_actualizados' => $actualizadosLeidos,
+            'entregados_actualizados' => $actualizadosEntregados,
+        ]);
 
         return view('chat.show', compact('chat', 'mensajes', 'usuario', 'otroUsuario'));
     }
@@ -558,7 +595,11 @@ class ChatController extends Controller
         }
 
         $mensajesPendientes = Mensaje::with(['chat', 'emisor'])
-            ->where('entregado', false)
+            ->where(function($query) {
+                $query->where('entregado', false)
+                      ->orWhere('entregado', 0)
+                      ->orWhereNull('entregado');
+            })
             ->where('registro_id_emisor', '!=', $usuarioId)
             ->whereHas('chat', function ($query) use ($usuarioId) {
                 $query->whereHas('usuarios', function ($subQuery) use ($usuarioId) {
@@ -570,12 +611,25 @@ class ChatController extends Controller
 
         $ahora = now();
 
+        \Log::info('Recibiendo mensajes pendientes', [
+            'usuario_id' => $usuarioId,
+            'mensajes_encontrados' => $mensajesPendientes->count(),
+            'tipos_mensajes' => $mensajesPendientes->pluck('tipo')->toArray(),
+        ]);
+
         if ($mensajesPendientes->isNotEmpty()) {
-            Mensaje::whereIn('id', $mensajesPendientes->pluck('id'))
+            $ids = $mensajesPendientes->pluck('id');
+            $actualizados = Mensaje::whereIn('id', $ids)
                 ->update([
                     'entregado' => true,
                     'entregado_at' => $ahora,
                 ]);
+
+            \Log::info('Mensajes pendientes marcados como entregados', [
+                'usuario_id' => $usuarioId,
+                'mensajes_actualizados' => $actualizados,
+                'ids' => $ids->toArray(),
+            ]);
 
             $mensajesPendientes->each(function (Mensaje $mensaje) use ($ahora) {
                 $mensaje->entregado = true;
