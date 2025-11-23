@@ -280,11 +280,11 @@ class ChatController extends Controller
                     'trace' => $e2->getTraceAsString()
                 ]);
                 // Aún así intentar retornar éxito para no frustrar al usuario
-                return back()->with('warning', 'El mensaje se procesó pero puede haber errores. Revisa los logs.');
+                return redirect()->route('chat.show', ['chat' => $chat->id])->with('warning', 'El mensaje se procesó pero puede haber errores. Revisa los logs.');
             }
         }
 
-        return back()->with('success', 'Mensaje enviado correctamente.');
+        return redirect()->route('chat.show', ['chat' => $chat->id])->with('success', 'Mensaje enviado correctamente.');
     }
 
     /**
