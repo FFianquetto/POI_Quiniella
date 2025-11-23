@@ -99,8 +99,21 @@
                                                             $mimeType = $mimeTypes[$extension] ?? 'video/webm;codecs=vp8,opus';
                                                         }
                                                     @endphp
-                                                    <video controls class="img-fluid rounded video-player" style="max-width: 300px; max-height: 400px; object-fit: contain; display: block;" preload="metadata" playsinline crossorigin="anonymous" onerror="console.error('Error al cargar video:', this.error); this.parentElement.innerHTML='<div class=\'alert alert-warning\'>Error al cargar el video. <a href=\'{{ $mensaje->archivo_url }}\' target=\'_blank\'>Intentar descargar</a></div>';">
-                                                        <source src="{{ $mensaje->archivo_url }}" type="{{ $mimeType }}">
+                                                    <video controls class="img-fluid rounded video-player" style="max-width: 300px; max-height: 400px; object-fit: contain; display: block;" preload="metadata" playsinline crossorigin="anonymous" 
+                                                        onerror="console.error('Error al cargar video:', this.error, 'URL:', '{{ $mensaje->archivo_url }}'); 
+                                                        const errorDiv = document.createElement('div');
+                                                        errorDiv.className = 'alert alert-warning';
+                                                        errorDiv.innerHTML = 'Error al cargar el video. <a href=\'{{ $mensaje->archivo_url }}\' target=\'_blank\'>Intentar descargar</a>';
+                                                        this.parentElement.replaceChild(errorDiv, this);"
+                                                        onloadeddata="console.log('Video cargado exitosamente:', '{{ $mensaje->archivo_url }}');"
+                                                        onloadstart="console.log('Iniciando carga de video:', '{{ $mensaje->archivo_url }}');">
+                                                        @if($extension === 'webm' || empty($extension))
+                                                            <source src="{{ $mensaje->archivo_url }}" type="video/webm;codecs=vp8,opus">
+                                                            <source src="{{ $mensaje->archivo_url }}" type="video/webm;codecs=vp9,opus">
+                                                            <source src="{{ $mensaje->archivo_url }}" type="video/webm">
+                                                        @else
+                                                            <source src="{{ $mensaje->archivo_url }}" type="{{ $mimeType }}">
+                                                        @endif
                                                         <source src="{{ $mensaje->archivo_url }}" type="video/webm">
                                                         <source src="{{ $mensaje->archivo_url }}" type="video/webm;codecs=vp8,opus">
                                                         <source src="{{ $mensaje->archivo_url }}" type="video/webm;codecs=vp9,opus">
@@ -923,13 +936,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 videoPreview.srcObject = stream;
                 
                 // Iniciar grabación automáticamente
-                // IMPORTANTE: MediaRecorder en móviles y la mayoría de navegadores solo soporta WebM
-                // Priorizar WebM sobre MP4 para máxima compatibilidad
+                // FORZAR WebM siempre - es el único formato que funciona confiablemente en móviles
+                // MediaRecorder en móviles NO soporta MP4 correctamente, aunque lo reporte como soportado
                 let mimeType = 'video/webm';
                 let extension = 'webm';
                 const options = {};
                 
-                // Verificar qué tipos MIME soporta MediaRecorder, priorizando WebM (más compatible)
+                // Siempre usar WebM - es el formato más compatible en todos los dispositivos
                 if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')) {
                     options.mimeType = 'video/webm;codecs=vp9,opus';
                     mimeType = 'video/webm';
@@ -945,24 +958,23 @@ document.addEventListener('DOMContentLoaded', function() {
                     mimeType = 'video/webm';
                     extension = 'webm';
                     console.log('Usando video/webm');
-                } else if (MediaRecorder.isTypeSupported('video/mp4')) {
-                    // Solo usar MP4 si WebM no está disponible (raro)
-                    options.mimeType = 'video/mp4';
-                    mimeType = 'video/mp4';
-                    extension = 'mp4';
-                    console.log('Usando video/mp4 (fallback)');
                 } else {
-                    // Fallback por defecto - WebM es el más compatible
-                    options.mimeType = 'video/webm';
-                    mimeType = 'video/webm';
-                    extension = 'webm';
-                    console.log('Usando video/webm (fallback por defecto)');
+                    // Si WebM no está disponible, el navegador no soporta grabación de video
+                    console.error('WebM no está soportado - no se puede grabar video');
+                    alert('Tu navegador no soporta la grabación de video. Por favor, usa un navegador moderno.');
+                    modal.hide();
+                    if (videoStream) {
+                        videoStream.getTracks().forEach(track => track.stop());
+                        videoStream = null;
+                    }
+                    return;
                 }
                 
-                console.log('Configuración de grabación:', {
+                console.log('Configuración de grabación (FORZADO WebM):', {
                     mimeType: options.mimeType,
                     extension: extension,
-                    soportado: MediaRecorder.isTypeSupported(options.mimeType)
+                    soportado: MediaRecorder.isTypeSupported(options.mimeType),
+                    userAgent: navigator.userAgent
                 });
                 
                 mediaRecorder = new MediaRecorder(stream, options);
