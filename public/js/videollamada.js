@@ -22,6 +22,7 @@ class VideoCall {
         // Timer
         this.callStartTime = null;
         this.callTimer = null;
+        this.trackVerificationInterval = null;
         
         // Señalización
         this.signalingInterval = null;
@@ -403,6 +404,28 @@ class VideoCall {
                 };
             });
             
+            // Asegurar que hay transceivers para recibir video y audio
+            // Esto es crítico para que el otro usuario pueda enviar sus tracks
+            const existingTransceivers = this.peerConnection.getTransceivers();
+            const hasVideoReceiver = existingTransceivers.some(t => 
+                t.receiver.track?.kind === 'video' || 
+                (t.direction === 'recvonly' || t.direction === 'sendrecv')
+            );
+            const hasAudioReceiver = existingTransceivers.some(t => 
+                t.receiver.track?.kind === 'audio' || 
+                (t.direction === 'recvonly' || t.direction === 'sendrecv')
+            );
+            
+            // Si no hay transceivers para recibir, agregarlos explícitamente
+            if (!hasVideoReceiver) {
+                this.peerConnection.addTransceiver('video', { direction: 'sendrecv' });
+                console.log('Transceiver de video agregado explícitamente para recibir');
+            }
+            if (!hasAudioReceiver) {
+                this.peerConnection.addTransceiver('audio', { direction: 'sendrecv' });
+                console.log('Transceiver de audio agregado explícitamente para recibir');
+            }
+            
             // Configurar handlers
             this.setupPeerConnectionHandlers();
             
@@ -466,6 +489,9 @@ class VideoCall {
             
             // Iniciar polling de señalización
             this.iniciarPolling();
+            
+            // Iniciar verificación periódica de tracks remotos
+            this.iniciarVerificacionTracksRemotos();
             
             this.actualizarEstado('Esperando respuesta...');
             
@@ -1321,6 +1347,28 @@ class VideoCall {
                 };
             });
             
+            // Asegurar que hay transceivers para recibir video y audio
+            // Esto es crítico para que el otro usuario pueda enviar sus tracks
+            const existingTransceivers = this.peerConnection.getTransceivers();
+            const hasVideoReceiver = existingTransceivers.some(t => 
+                t.receiver.track?.kind === 'video' || 
+                (t.direction === 'recvonly' || t.direction === 'sendrecv')
+            );
+            const hasAudioReceiver = existingTransceivers.some(t => 
+                t.receiver.track?.kind === 'audio' || 
+                (t.direction === 'recvonly' || t.direction === 'sendrecv')
+            );
+            
+            // Si no hay transceivers para recibir, agregarlos explícitamente
+            if (!hasVideoReceiver) {
+                this.peerConnection.addTransceiver('video', { direction: 'sendrecv' });
+                console.log('Transceiver de video agregado explícitamente para recibir (answer)');
+            }
+            if (!hasAudioReceiver) {
+                this.peerConnection.addTransceiver('audio', { direction: 'sendrecv' });
+                console.log('Transceiver de audio agregado explícitamente para recibir (answer)');
+            }
+            
             // Configurar handlers
             this.setupPeerConnectionHandlers();
             
@@ -1334,13 +1382,44 @@ class VideoCall {
                 
                 // Asegurar que los transceivers estén configurados para recibir después de procesar el offer
                 const transceiversAfterOffer = this.peerConnection.getTransceivers();
+                console.log('Transceivers después de procesar offer:', transceiversAfterOffer.length);
+                
+                // Verificar si hay transceivers para video y audio
+                let hasVideoTransceiver = false;
+                let hasAudioTransceiver = false;
+                
                 transceiversAfterOffer.forEach((transceiver, index) => {
+                    const kind = transceiver.receiver.track?.kind || 
+                                 (transceiver.sender.track?.kind) || 
+                                 (transceiver.direction.includes('recv') ? 'unknown' : null);
+                    
+                    console.log(`Transceiver ${index} después de offer:`, {
+                        kind: kind,
+                        direction: transceiver.direction,
+                        currentDirection: transceiver.currentDirection,
+                        hasReceiverTrack: !!transceiver.receiver.track,
+                        hasSenderTrack: !!transceiver.sender.track
+                    });
+                    
+                    if (kind === 'video') hasVideoTransceiver = true;
+                    if (kind === 'audio') hasAudioTransceiver = true;
+                    
                     // Si el transceiver no está configurado para recibir, configurarlo
                     if (transceiver.direction === 'sendonly' || transceiver.direction === 'inactive') {
                         transceiver.direction = 'sendrecv';
                         console.log(`Transceiver ${index} configurado para sendrecv después de procesar offer`);
                     }
                 });
+                
+                // Si no hay transceivers para recibir, agregarlos explícitamente
+                if (!hasVideoTransceiver) {
+                    const videoTransceiver = this.peerConnection.addTransceiver('video', { direction: 'sendrecv' });
+                    console.log('Transceiver de video agregado explícitamente después de procesar offer');
+                }
+                if (!hasAudioTransceiver) {
+                    const audioTransceiver = this.peerConnection.addTransceiver('audio', { direction: 'sendrecv' });
+                    console.log('Transceiver de audio agregado explícitamente después de procesar offer');
+                }
             } catch (sdpError) {
                 console.error('Error al procesar SDP:', sdpError);
                 console.error('SDP original:', this.incomingOffer);
@@ -1457,6 +1536,9 @@ class VideoCall {
             // Iniciar polling
             this.iniciarPolling();
             
+            // Iniciar verificación periódica de tracks remotos
+            this.iniciarVerificacionTracksRemotos();
+            
             this.isInitiator = false;
             this.incomingOffer = null;
             
@@ -1545,6 +1627,7 @@ class VideoCall {
     endCall() {
         this.isInCall = false;
         this.detenerTimer();
+        this.detenerVerificacionTracksRemotos();
         this.stopCallSound();
         
         // Cerrar conexión peer
@@ -1689,6 +1772,74 @@ class VideoCall {
         }
         if (this.tiempoVideollamada) {
             this.tiempoVideollamada.textContent = '00:00';
+        }
+    }
+    
+    /**
+     * Iniciar verificación periódica de tracks remotos
+     * Esto asegura que los tracks remotos se agreguen al stream incluso si ontrack no se dispara
+     */
+    iniciarVerificacionTracksRemotos() {
+        if (this.trackVerificationInterval) {
+            return;
+        }
+        
+        console.log('Iniciando verificación periódica de tracks remotos');
+        
+        this.trackVerificationInterval = setInterval(() => {
+            if (!this.peerConnection || !this.isInCall) {
+                this.detenerVerificacionTracksRemotos();
+                return;
+            }
+            
+            // Verificar transceivers y agregar tracks remotos al stream
+            const transceivers = this.peerConnection.getTransceivers();
+            let tracksAgregados = false;
+            
+            transceivers.forEach((transceiver, index) => {
+                if (transceiver.receiver.track) {
+                    // Asegurar que el stream remoto existe
+                    if (!this.remoteStream) {
+                        this.remoteStream = new MediaStream();
+                    }
+                    
+                    // Verificar si el track ya está en el stream
+                    const existingTrack = this.remoteStream.getTracks().find(t => t.id === transceiver.receiver.track.id);
+                    if (!existingTrack) {
+                        this.remoteStream.addTrack(transceiver.receiver.track);
+                        console.log(`Track remoto ${transceiver.receiver.track.kind} agregado mediante verificación periódica`);
+                        tracksAgregados = true;
+                    }
+                }
+            });
+            
+            // Si se agregaron tracks, actualizar el video
+            if (tracksAgregados && this.videoRemoto && this.remoteStream) {
+                if (this.videoRemoto.srcObject !== this.remoteStream) {
+                    this.videoRemoto.srcObject = this.remoteStream;
+                }
+                this.videoRemoto.play().catch(error => {
+                    console.warn('Error al reproducir video después de agregar tracks:', error);
+                });
+                
+                // Log del estado actual
+                console.log('Stream remoto actualizado:', {
+                    videoTracks: this.remoteStream.getVideoTracks().length,
+                    audioTracks: this.remoteStream.getAudioTracks().length,
+                    totalTracks: this.remoteStream.getTracks().length
+                });
+            }
+        }, 1000); // Verificar cada segundo
+    }
+    
+    /**
+     * Detener verificación de tracks remotos
+     */
+    detenerVerificacionTracksRemotos() {
+        if (this.trackVerificationInterval) {
+            clearInterval(this.trackVerificationInterval);
+            this.trackVerificationInterval = null;
+            console.log('Verificación periódica de tracks remotos detenida');
         }
     }
 }
