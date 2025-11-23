@@ -211,11 +211,45 @@ class ChatController extends Controller
             $allowedTypes = config('chat.allowed_file_types');
             $tipoValido = false;
             
-            foreach ($allowedTypes as $tipo => $extensiones) {
-                if (in_array($extension, $extensiones)) {
-                    $mensajeData['tipo'] = $tipo;
+            // Si el request especifica un tipo (especialmente para videos grabados), usarlo primero
+            if ($request->tipo && in_array($request->tipo, ['video', 'audio', 'imagen', 'archivo'])) {
+                // Verificar que la extensión es compatible con el tipo solicitado
+                if (isset($allowedTypes[$request->tipo]) && in_array($extension, $allowedTypes[$request->tipo])) {
+                    $mensajeData['tipo'] = $request->tipo;
                     $tipoValido = true;
-                    break;
+                    \Log::info('Tipo determinado por request', [
+                        'tipo' => $request->tipo,
+                        'extension' => $extension
+                    ]);
+                }
+            }
+            
+            // Si no se pudo determinar por el request, buscar por extensión
+            if (!$tipoValido) {
+                foreach ($allowedTypes as $tipo => $extensiones) {
+                    if (in_array($extension, $extensiones)) {
+                        $mensajeData['tipo'] = $tipo;
+                        $tipoValido = true;
+                        \Log::info('Tipo determinado por extensión', [
+                            'tipo' => $tipo,
+                            'extension' => $extension
+                        ]);
+                        break;
+                    }
+                }
+            }
+            
+            // Para webm, verificar el nombre del archivo si aún no se determinó
+            if (!$tipoValido && $extension === 'webm') {
+                $nombreArchivo = strtolower($archivo->getClientOriginalName());
+                if (strpos($nombreArchivo, 'video') !== false) {
+                    $mensajeData['tipo'] = 'video';
+                    $tipoValido = true;
+                    \Log::info('Tipo webm determinado por nombre (video)', ['nombre' => $archivo->getClientOriginalName()]);
+                } else if (strpos($nombreArchivo, 'audio') !== false) {
+                    $mensajeData['tipo'] = 'audio';
+                    $tipoValido = true;
+                    \Log::info('Tipo webm determinado por nombre (audio)', ['nombre' => $archivo->getClientOriginalName()]);
                 }
             }
             
@@ -223,7 +257,8 @@ class ChatController extends Controller
                 // Si el tipo no es válido, intentar usar el tipo del request o 'archivo' por defecto
                 \Log::warning('Tipo de archivo no reconocido, usando tipo por defecto', [
                     'extension' => $extension,
-                    'tipo_request' => $request->tipo
+                    'tipo_request' => $request->tipo,
+                    'nombre' => $archivo->getClientOriginalName()
                 ]);
                 $mensajeData['tipo'] = $request->tipo ?? 'archivo';
             }
@@ -263,23 +298,46 @@ class ChatController extends Controller
             
             // Generar URL pública para el archivo solo si se guardó correctamente
             if ($rutaRelativa) {
-                // En Railway, usar siempre la ruta de fallback para asegurar que funcione
-                $baseUrl = rtrim(config('app.url', env('APP_URL', '')), '/');
-                // Extraer solo el nombre del archivo de la ruta relativa
-                $nombreArchivoFinal = basename($rutaRelativa);
-                // Usar la ruta de fallback que siempre funciona en Railway
-                $mensajeData['archivo_url'] = $baseUrl . '/storage/chat_archivos/' . $nombreArchivoFinal;
-                $mensajeData['archivo_nombre'] = $archivo->getClientOriginalName();
+                // Verificar que el archivo realmente existe
+                $rutaCompleta = storage_path('app/public/' . $rutaRelativa);
+                $archivoExiste = file_exists($rutaCompleta);
+                $tamañoArchivo = $archivoExiste ? filesize($rutaCompleta) : 0;
                 
-                \Log::info('URL generada para archivo', [
-                    'ruta_relativa' => $rutaRelativa,
-                    'nombre_archivo' => $nombreArchivoFinal,
-                    'archivo_url' => $mensajeData['archivo_url'],
-                    'tipo' => $mensajeData['tipo']
-                ]);
+                if (!$archivoExiste || $tamañoArchivo === 0) {
+                    \Log::error('Archivo guardado pero no existe o está vacío', [
+                        'ruta_relativa' => $rutaRelativa,
+                        'ruta_completa' => $rutaCompleta,
+                        'existe' => $archivoExiste,
+                        'tamaño' => $tamañoArchivo
+                    ]);
+                    $mensajeData['archivo_url'] = null;
+                    $mensajeData['archivo_nombre'] = $archivo->getClientOriginalName() . ' (error al guardar)';
+                } else {
+                    // En Railway, usar siempre la ruta de fallback para asegurar que funcione
+                    $baseUrl = rtrim(config('app.url', env('APP_URL', '')), '/');
+                    // Extraer solo el nombre del archivo de la ruta relativa
+                    $nombreArchivoFinal = basename($rutaRelativa);
+                    // Usar la ruta de fallback que siempre funciona en Railway
+                    $mensajeData['archivo_url'] = $baseUrl . '/storage/chat_archivos/' . $nombreArchivoFinal;
+                    $mensajeData['archivo_nombre'] = $archivo->getClientOriginalName();
+                    
+                    \Log::info('URL generada para archivo', [
+                        'ruta_relativa' => $rutaRelativa,
+                        'nombre_archivo' => $nombreArchivoFinal,
+                        'archivo_url' => $mensajeData['archivo_url'],
+                        'tipo' => $mensajeData['tipo'],
+                        'tamaño' => $tamañoArchivo,
+                        'extension' => $extension
+                    ]);
+                }
             } else {
                 // Si no se pudo guardar el archivo, continuar sin archivo pero guardar el mensaje
-                \Log::warning('Archivo no se pudo guardar, pero continuando con el mensaje sin archivo');
+                \Log::error('Archivo no se pudo guardar', [
+                    'nombre_original' => $archivo->getClientOriginalName(),
+                    'tamaño' => $archivo->getSize(),
+                    'tipo_mime' => $archivo->getMimeType(),
+                    'error' => $archivo->getError()
+                ]);
                 $mensajeData['archivo_url'] = null;
                 $mensajeData['archivo_nombre'] = $archivo->getClientOriginalName() . ' (no disponible)';
             }

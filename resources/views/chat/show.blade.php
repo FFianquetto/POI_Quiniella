@@ -914,38 +914,47 @@ document.addEventListener('DOMContentLoaded', function() {
                 videoPreview.srcObject = stream;
                 
                 // Iniciar grabación automáticamente
-                // Priorizar MP4 sobre webm para mejor compatibilidad
-                let mimeType = 'video/mp4';
-                let extension = 'mp4';
+                // IMPORTANTE: MediaRecorder en móviles y la mayoría de navegadores solo soporta WebM
+                // Priorizar WebM sobre MP4 para máxima compatibilidad
+                let mimeType = 'video/webm';
+                let extension = 'webm';
                 const options = {};
                 
-                // Verificar qué tipos MIME soporta MediaRecorder para video, priorizando MP4
-                if (MediaRecorder.isTypeSupported('video/mp4')) {
-                    options.mimeType = 'video/mp4';
-                    mimeType = 'video/mp4';
-                    extension = 'mp4';
-                } else if (MediaRecorder.isTypeSupported('video/mp4;codecs=h264')) {
-                    options.mimeType = 'video/mp4;codecs=h264';
-                    mimeType = 'video/mp4';
-                    extension = 'mp4';
-                } else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')) {
+                // Verificar qué tipos MIME soporta MediaRecorder, priorizando WebM (más compatible)
+                if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')) {
                     options.mimeType = 'video/webm;codecs=vp9,opus';
                     mimeType = 'video/webm';
                     extension = 'webm';
+                    console.log('Usando video/webm;codecs=vp9,opus');
                 } else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')) {
                     options.mimeType = 'video/webm;codecs=vp8,opus';
                     mimeType = 'video/webm';
                     extension = 'webm';
+                    console.log('Usando video/webm;codecs=vp8,opus');
                 } else if (MediaRecorder.isTypeSupported('video/webm')) {
                     options.mimeType = 'video/webm';
                     mimeType = 'video/webm';
                     extension = 'webm';
+                    console.log('Usando video/webm');
+                } else if (MediaRecorder.isTypeSupported('video/mp4')) {
+                    // Solo usar MP4 si WebM no está disponible (raro)
+                    options.mimeType = 'video/mp4';
+                    mimeType = 'video/mp4';
+                    extension = 'mp4';
+                    console.log('Usando video/mp4 (fallback)');
                 } else {
-                    // Fallback por defecto
+                    // Fallback por defecto - WebM es el más compatible
                     options.mimeType = 'video/webm';
                     mimeType = 'video/webm';
                     extension = 'webm';
+                    console.log('Usando video/webm (fallback por defecto)');
                 }
+                
+                console.log('Configuración de grabación:', {
+                    mimeType: options.mimeType,
+                    extension: extension,
+                    soportado: MediaRecorder.isTypeSupported(options.mimeType)
+                });
                 
                 mediaRecorder = new MediaRecorder(stream, options);
                 videoChunks = [];
