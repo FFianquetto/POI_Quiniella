@@ -244,28 +244,25 @@
     </div>
 </div>
 
-<div class="modal fade" id="modalVideo" tabindex="-1">
+<div class="modal fade" id="modalVideo" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
-            <div class="modal-header bg-primary text-white">
+            <div class="modal-header bg-danger text-white">
                 <h5 class="modal-title">
-                    <i class="fa fa-video-camera me-2"></i>Grabar Video
+                    <i class="fa fa-video-camera me-2"></i>Grabando Video
+                    <span class="badge bg-light text-danger ms-2" id="tiempo-video-grabacion">00:00</span>
                 </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body p-0">
                 <video id="video-preview" class="w-100" autoplay muted style="border-radius: 0;"></video>
                 <canvas id="video-canvas" class="d-none"></canvas>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                <button type="button" class="btn btn-secondary" id="btn-cancelar-video" data-bs-dismiss="modal">
                     <i class="fa fa-times me-1"></i>Cancelar
                 </button>
-                <button type="button" class="btn btn-primary" id="btn-grabar-video">
-                    <i class="fa fa-play me-1"></i>Grabar
-                </button>
-                <button type="button" class="btn btn-danger" id="btn-detener-video" style="display: none;">
-                    <i class="fa fa-stop me-1"></i>Detener
+                <button type="button" class="btn btn-danger btn-lg" id="btn-detener-video">
+                    <i class="fa fa-stop me-1"></i>Detener y Enviar
                 </button>
             </div>
         </div>
@@ -674,7 +671,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const btnAudio = document.getElementById('btn-audio');
     const btnVideo = document.getElementById('btn-video');
     const btnDetenerGrabacion = document.getElementById('btn-detener-grabacion');
-    const btnGrabarVideo = document.getElementById('btn-grabar-video');
     const btnDetenerVideo = document.getElementById('btn-detener-video');
     const archivoInput = document.getElementById('archivo-input');
     const controlesGrabacion = document.getElementById('controles-grabacion');
@@ -900,93 +896,163 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    let videoStream = null;
+    let videoRecordingInterval = null;
+    let videoStartTime = null;
+    const tiempoVideoGrabacion = document.getElementById('tiempo-video-grabacion');
+    const btnCancelarVideo = document.getElementById('btn-cancelar-video');
+    
     btnVideo.addEventListener('click', function() {
         const modal = new bootstrap.Modal(document.getElementById('modalVideo'));
         modal.show();
         
+        // Iniciar acceso a la cámara inmediatamente
         navigator.mediaDevices.getUserMedia({ video: true, audio: true })
             .then(function(stream) {
+                videoStream = stream;
                 const videoPreview = document.getElementById('video-preview');
                 videoPreview.srcObject = stream;
                 
-                btnGrabarVideo.onclick = function() {
-                    // Priorizar MP4 sobre webm para mejor compatibilidad
-                    let mimeType = 'video/mp4';
-                    let extension = 'mp4';
-                    const options = {};
-                    
-                    // Verificar qué tipos MIME soporta MediaRecorder para video, priorizando MP4
-                    if (MediaRecorder.isTypeSupported('video/mp4')) {
-                        options.mimeType = 'video/mp4';
-                        mimeType = 'video/mp4';
-                        extension = 'mp4';
-                    } else if (MediaRecorder.isTypeSupported('video/mp4;codecs=h264')) {
-                        options.mimeType = 'video/mp4;codecs=h264';
-                        mimeType = 'video/mp4';
-                        extension = 'mp4';
-                    } else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')) {
-                        options.mimeType = 'video/webm;codecs=vp9,opus';
-                        mimeType = 'video/webm';
-                        extension = 'webm';
-                    } else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')) {
-                        options.mimeType = 'video/webm;codecs=vp8,opus';
-                        mimeType = 'video/webm';
-                        extension = 'webm';
-                    } else if (MediaRecorder.isTypeSupported('video/webm')) {
-                        options.mimeType = 'video/webm';
-                        mimeType = 'video/webm';
-                        extension = 'webm';
-                    } else {
-                        // Fallback por defecto
-                        options.mimeType = 'video/webm';
-                        mimeType = 'video/webm';
-                        extension = 'webm';
+                // Iniciar grabación automáticamente
+                // Priorizar MP4 sobre webm para mejor compatibilidad
+                let mimeType = 'video/mp4';
+                let extension = 'mp4';
+                const options = {};
+                
+                // Verificar qué tipos MIME soporta MediaRecorder para video, priorizando MP4
+                if (MediaRecorder.isTypeSupported('video/mp4')) {
+                    options.mimeType = 'video/mp4';
+                    mimeType = 'video/mp4';
+                    extension = 'mp4';
+                } else if (MediaRecorder.isTypeSupported('video/mp4;codecs=h264')) {
+                    options.mimeType = 'video/mp4;codecs=h264';
+                    mimeType = 'video/mp4';
+                    extension = 'mp4';
+                } else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')) {
+                    options.mimeType = 'video/webm;codecs=vp9,opus';
+                    mimeType = 'video/webm';
+                    extension = 'webm';
+                } else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')) {
+                    options.mimeType = 'video/webm;codecs=vp8,opus';
+                    mimeType = 'video/webm';
+                    extension = 'webm';
+                } else if (MediaRecorder.isTypeSupported('video/webm')) {
+                    options.mimeType = 'video/webm';
+                    mimeType = 'video/webm';
+                    extension = 'webm';
+                } else {
+                    // Fallback por defecto
+                    options.mimeType = 'video/webm';
+                    mimeType = 'video/webm';
+                    extension = 'webm';
+                }
+                
+                mediaRecorder = new MediaRecorder(stream, options);
+                videoChunks = [];
+                
+                mediaRecorder.ondataavailable = function(event) {
+                    if (event.data.size > 0) {
+                        videoChunks.push(event.data);
                     }
-                    
-                    mediaRecorder = new MediaRecorder(stream, options);
-                    videoChunks = [];
-                    
-                    mediaRecorder.ondataavailable = function(event) {
-                        if (event.data.size > 0) {
-                            videoChunks.push(event.data);
-                        }
-                    };
-                    
-                    mediaRecorder.onstop = function() {
-                        // Usar el tipo MIME detectado
-                        const videoBlob = new Blob(videoChunks, { type: mimeType });
-                        const videoFile = new File([videoBlob], 'video_grabado_' + Date.now() + '.' + extension, { type: mimeType });
-                        
-                        const dataTransfer = new DataTransfer();
-                        dataTransfer.items.add(videoFile);
-                        archivoInput.files = dataTransfer.files;
-                        
-                        mensajeTipo.value = 'video';
-                        modal.hide();
-                        
-                        const mensajeTexto = document.getElementById('mensaje-texto');
-                        mensajeTexto.value = '🎥 Video grabado';
-                        
-                        btnVideo.classList.add('btn-success');
-                        setTimeout(() => btnVideo.classList.remove('btn-success'), 2000);
-                    };
-                    
-                    mediaRecorder.start();
-                    btnGrabarVideo.style.display = 'none';
-                    btnDetenerVideo.style.display = 'block';
                 };
                 
-                btnDetenerVideo.onclick = function() {
-                    if (mediaRecorder && mediaRecorder.state === 'recording') {
-                        mediaRecorder.stop();
-                        stream.getTracks().forEach(track => track.stop());
+                mediaRecorder.onstop = function() {
+                    // Detener el temporizador
+                    if (videoRecordingInterval) {
+                        clearInterval(videoRecordingInterval);
+                        videoRecordingInterval = null;
                     }
+                    
+                    // Usar el tipo MIME detectado
+                    const videoBlob = new Blob(videoChunks, { type: mimeType });
+                    const videoFile = new File([videoBlob], 'video_grabado_' + Date.now() + '.' + extension, { type: mimeType });
+                    
+                    const dataTransfer = new DataTransfer();
+                    dataTransfer.items.add(videoFile);
+                    archivoInput.files = dataTransfer.files;
+                    
+                    mensajeTipo.value = 'video';
+                    
+                    const mensajeTexto = document.getElementById('mensaje-texto');
+                    mensajeTexto.value = '🎥 Video grabado';
+                    
+                    // Cerrar modal y enviar automáticamente
+                    modal.hide();
+                    
+                    // Detener el stream
+                    if (videoStream) {
+                        videoStream.getTracks().forEach(track => track.stop());
+                        videoStream = null;
+                    }
+                    
+                    // Enviar el formulario automáticamente
+                    setTimeout(() => {
+                        chatForm.submit();
+                    }, 300);
                 };
+                
+                // Iniciar grabación automáticamente
+                mediaRecorder.start();
+                videoStartTime = Date.now();
+                
+                // Iniciar temporizador
+                tiempoVideoGrabacion.textContent = '00:00';
+                videoRecordingInterval = setInterval(function() {
+                    const elapsed = Math.floor((Date.now() - videoStartTime) / 1000);
+                    const minutes = Math.floor(elapsed / 60);
+                    const seconds = elapsed % 60;
+                    tiempoVideoGrabacion.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                }, 1000);
             })
             .catch(function(error) {
                 alert('Error al acceder a la cámara: ' + error.message);
                 modal.hide();
             });
+        
+        // Botón de detener y enviar
+        btnDetenerVideo.onclick = function() {
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                mediaRecorder.stop();
+            }
+        };
+        
+        // Botón de cancelar
+        btnCancelarVideo.onclick = function() {
+            // Detener grabación si está activa
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                mediaRecorder.stop();
+            }
+            
+            // Detener stream
+            if (videoStream) {
+                videoStream.getTracks().forEach(track => track.stop());
+                videoStream = null;
+            }
+            
+            // Limpiar temporizador
+            if (videoRecordingInterval) {
+                clearInterval(videoRecordingInterval);
+                videoRecordingInterval = null;
+            }
+            
+            // Limpiar chunks
+            videoChunks = [];
+            
+            modal.hide();
+        };
+        
+        // Limpiar cuando se cierra el modal
+        document.getElementById('modalVideo').addEventListener('hidden.bs.modal', function() {
+            if (videoStream) {
+                videoStream.getTracks().forEach(track => track.stop());
+                videoStream = null;
+            }
+            if (videoRecordingInterval) {
+                clearInterval(videoRecordingInterval);
+                videoRecordingInterval = null;
+            }
+            videoChunks = [];
+        });
     });
 
     const chatMessages = document.getElementById('chat-messages');
