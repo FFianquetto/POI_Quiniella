@@ -449,6 +449,13 @@ class VideoCall {
                         readyState: transceiver.sender.track.readyState
                     } : 'none'
                 });
+                
+                // Asegurar que los transceivers estén configurados para recibir
+                // Si el transceiver no tiene dirección de recepción, configurarlo
+                if (transceiver.direction === 'sendonly' || transceiver.direction === 'inactive') {
+                    transceiver.direction = 'sendrecv';
+                    console.log(`Transceiver ${index} configurado para sendrecv en offer`);
+                }
             });
             
             // Enviar offer
@@ -485,13 +492,26 @@ class VideoCall {
                 id: event.track.id,
                 enabled: event.track.enabled,
                 readyState: event.track.readyState,
-                streams: event.streams.length
+                streams: event.streams.length,
+                transceiver: event.transceiver ? {
+                    direction: event.transceiver.direction,
+                    currentDirection: event.transceiver.currentDirection
+                } : 'none'
             });
+            
+            // Asegurar que el stream remoto existe
+            if (!this.remoteStream) {
+                this.remoteStream = new MediaStream();
+            }
             
             // Agregar el track al stream remoto combinado
             if (event.track && !this.remoteStream.getTracks().find(t => t.id === event.track.id)) {
                 this.remoteStream.addTrack(event.track);
-                console.log('Track agregado al stream remoto:', event.track.kind);
+                console.log('Track agregado al stream remoto:', event.track.kind, {
+                    trackId: event.track.id,
+                    enabled: event.track.enabled,
+                    readyState: event.track.readyState
+                });
             }
             
             // Si el stream viene en el evento, también agregar esos tracks
@@ -504,14 +524,29 @@ class VideoCall {
                 });
             }
             
-            // Asignar el stream al elemento de video
+            // Asignar el stream al elemento de video inmediatamente
             if (this.videoRemoto) {
-                this.videoRemoto.srcObject = this.remoteStream;
+                // Asegurar que el stream esté asignado
+                if (this.videoRemoto.srcObject !== this.remoteStream) {
+                    this.videoRemoto.srcObject = this.remoteStream;
+                    console.log('Stream remoto asignado al elemento video');
+                }
                 
                 // Forzar reproducción del video
-                this.videoRemoto.play().catch(error => {
-                    console.warn('Error al reproducir video remoto:', error);
-                });
+                const playPromise = this.videoRemoto.play();
+                if (playPromise !== undefined) {
+                    playPromise.then(() => {
+                        console.log('Video remoto reproduciéndose correctamente');
+                    }).catch(error => {
+                        console.warn('Error al reproducir video remoto:', error);
+                        // Intentar nuevamente después de un breve delay
+                        setTimeout(() => {
+                            this.videoRemoto.play().catch(err => {
+                                console.warn('Error al reproducir video remoto (segundo intento):', err);
+                            });
+                        }, 500);
+                    });
+                }
                 
                 // Agregar listener para cuando el video esté listo
                 this.videoRemoto.onloadedmetadata = () => {
@@ -520,13 +555,23 @@ class VideoCall {
                         console.warn('Error al reproducir después de metadata:', error);
                     });
                 };
+                
+                // Agregar listener para cuando el video pueda reproducirse
+                this.videoRemoto.oncanplay = () => {
+                    console.log('Video remoto puede reproducirse');
+                    this.videoRemoto.play().catch(error => {
+                        console.warn('Error al reproducir cuando canplay:', error);
+                    });
+                };
             }
             
             // Log del estado del stream
             console.log('Stream remoto actual:', {
                 videoTracks: this.remoteStream.getVideoTracks().length,
                 audioTracks: this.remoteStream.getAudioTracks().length,
-                totalTracks: this.remoteStream.getTracks().length
+                totalTracks: this.remoteStream.getTracks().length,
+                videoEnabled: this.remoteStream.getVideoTracks().length > 0 ? this.remoteStream.getVideoTracks()[0].enabled : false,
+                audioEnabled: this.remoteStream.getAudioTracks().length > 0 ? this.remoteStream.getAudioTracks()[0].enabled : false
             });
             
             // Iniciar timer y actualizar estado solo si es la primera vez
@@ -575,13 +620,40 @@ class VideoCall {
                     this.ocultarEstado();
                     this.detenerPolling(); // Ya no necesitamos polling cuando estamos conectados
                     
+                    // Verificar transceivers y asegurar que estén recibiendo
+                    const transceiversOnConnected = this.peerConnection.getTransceivers();
+                    transceiversOnConnected.forEach((transceiver, index) => {
+                        console.log(`Transceiver ${index} en conexión:`, {
+                            kind: transceiver.receiver.track?.kind || 'none',
+                            direction: transceiver.direction,
+                            currentDirection: transceiver.currentDirection,
+                            hasReceiverTrack: !!transceiver.receiver.track
+                        });
+                        
+                        // Si el transceiver debería recibir pero no tiene track, verificar
+                        if ((transceiver.direction === 'recvonly' || transceiver.direction === 'sendrecv') && !transceiver.receiver.track) {
+                            console.warn(`Transceiver ${index} debería recibir pero no tiene track`);
+                        }
+                        
+                        // Si hay un track en el receiver pero no está en el stream remoto, agregarlo
+                        if (transceiver.receiver.track && this.remoteStream) {
+                            const existingTrack = this.remoteStream.getTracks().find(t => t.id === transceiver.receiver.track.id);
+                            if (!existingTrack) {
+                                this.remoteStream.addTrack(transceiver.receiver.track);
+                                console.log(`Track del transceiver ${index} agregado al stream remoto`);
+                            }
+                        }
+                    });
+                    
                     // Verificar que los tracks remotos estén disponibles
                     if (this.remoteStream) {
                         const videoTracks = this.remoteStream.getVideoTracks();
                         const audioTracks = this.remoteStream.getAudioTracks();
                         console.log('Tracks remotos después de conexión:', {
                             video: videoTracks.length,
-                            audio: audioTracks.length
+                            audio: audioTracks.length,
+                            videoEnabled: videoTracks.length > 0 ? videoTracks[0].enabled : false,
+                            audioEnabled: audioTracks.length > 0 ? audioTracks[0].enabled : false
                         });
                         
                         // Si hay tracks pero el video no se muestra, forzar actualización
@@ -589,6 +661,20 @@ class VideoCall {
                             this.videoRemoto.srcObject = this.remoteStream;
                             this.videoRemoto.play().catch(error => {
                                 console.warn('Error al reproducir video después de conexión:', error);
+                            });
+                        }
+                    } else {
+                        // Si no hay stream remoto, crearlo y agregar tracks de los transceivers
+                        this.remoteStream = new MediaStream();
+                        transceiversOnConnected.forEach(transceiver => {
+                            if (transceiver.receiver.track) {
+                                this.remoteStream.addTrack(transceiver.receiver.track);
+                            }
+                        });
+                        if (this.videoRemoto && this.remoteStream.getTracks().length > 0) {
+                            this.videoRemoto.srcObject = this.remoteStream;
+                            this.videoRemoto.play().catch(error => {
+                                console.warn('Error al reproducir video después de crear stream remoto:', error);
                             });
                         }
                     }
@@ -635,6 +721,22 @@ class VideoCall {
                     // Conexión establecida correctamente
                     console.log('ICE connection state:', iceState);
                     if (iceState === 'completed') {
+                        // Verificar transceivers y asegurar que todos los tracks estén en el stream remoto
+                        const transceiversOnCompleted = this.peerConnection.getTransceivers();
+                        if (!this.remoteStream) {
+                            this.remoteStream = new MediaStream();
+                        }
+                        
+                        transceiversOnCompleted.forEach((transceiver, index) => {
+                            if (transceiver.receiver.track) {
+                                const existingTrack = this.remoteStream.getTracks().find(t => t.id === transceiver.receiver.track.id);
+                                if (!existingTrack) {
+                                    this.remoteStream.addTrack(transceiver.receiver.track);
+                                    console.log(`Track del transceiver ${index} agregado al stream remoto cuando ICE completado`);
+                                }
+                            }
+                        });
+                        
                         // Verificar tracks remotos cuando la conexión ICE se complete
                         if (this.remoteStream) {
                             const videoTracks = this.remoteStream.getVideoTracks();
@@ -647,8 +749,10 @@ class VideoCall {
                             });
                             
                             // Asegurar que el video se muestre
-                            if (videoTracks.length > 0 && this.videoRemoto) {
-                                this.videoRemoto.srcObject = this.remoteStream;
+                            if (this.videoRemoto) {
+                                if (this.videoRemoto.srcObject !== this.remoteStream) {
+                                    this.videoRemoto.srcObject = this.remoteStream;
+                                }
                                 this.videoRemoto.play().catch(error => {
                                     console.warn('Error al reproducir video cuando ICE completado:', error);
                                 });
@@ -873,6 +977,18 @@ class VideoCall {
                                     readyState: transceiver.receiver.track.readyState
                                 } : 'none'
                             });
+                            
+                            // Asegurar que los transceivers estén configurados para recibir
+                            // Si el transceiver no tiene dirección de recepción, configurarlo
+                            if (transceiver.direction === 'sendonly' || transceiver.direction === 'inactive') {
+                                transceiver.direction = 'sendrecv';
+                                console.log(`Transceiver ${index} configurado para sendrecv después de answer`);
+                            }
+                            
+                            // Si el receiver no tiene track pero debería recibir, forzar actualización
+                            if (!transceiver.receiver.track && (transceiver.direction === 'recvonly' || transceiver.direction === 'sendrecv')) {
+                                console.log(`Transceiver ${index} debería recibir pero no tiene track, esperando...`);
+                            }
                         });
                     } catch (sdpError) {
                         console.error('Error al procesar SDP de answer:', sdpError);
@@ -1215,6 +1331,16 @@ class VideoCall {
             // Procesar offer recibido con manejo de errores mejorado
             try {
                 await this.peerConnection.setRemoteDescription(new RTCSessionDescription(cleanedOffer));
+                
+                // Asegurar que los transceivers estén configurados para recibir después de procesar el offer
+                const transceiversAfterOffer = this.peerConnection.getTransceivers();
+                transceiversAfterOffer.forEach((transceiver, index) => {
+                    // Si el transceiver no está configurado para recibir, configurarlo
+                    if (transceiver.direction === 'sendonly' || transceiver.direction === 'inactive') {
+                        transceiver.direction = 'sendrecv';
+                        console.log(`Transceiver ${index} configurado para sendrecv después de procesar offer`);
+                    }
+                });
             } catch (sdpError) {
                 console.error('Error al procesar SDP:', sdpError);
                 console.error('SDP original:', this.incomingOffer);
@@ -1288,6 +1414,13 @@ class VideoCall {
                     direction: transceiver.direction,
                     currentDirection: transceiver.currentDirection
                 });
+                
+                // Asegurar que los transceivers estén configurados para recibir
+                // Si el transceiver no tiene dirección de recepción, configurarlo
+                if (transceiver.direction === 'sendonly' || transceiver.direction === 'inactive') {
+                    transceiver.direction = 'sendrecv';
+                    console.log(`Transceiver ${index} configurado para sendrecv`);
+                }
             });
             
             // Verificar que los tracks locales estén listos antes de crear el answer
@@ -1300,8 +1433,11 @@ class VideoCall {
                 audioReady: audioTracks.length > 0 ? audioTracks[0].readyState : 'none'
             });
             
-            // Crear answer
-            const answer = await this.peerConnection.createAnswer();
+            // Crear answer con opciones explícitas para recibir video y audio
+            const answer = await this.peerConnection.createAnswer({
+                offerToReceiveAudio: true,
+                offerToReceiveVideo: true
+            });
             
             console.log('Answer creado:', {
                 type: answer.type,
