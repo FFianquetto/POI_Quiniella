@@ -195,7 +195,7 @@
                         </div>
                     @endif
 
-                    <form action="{{ route('chat.grupo.tareas.crear', $chat->id) }}" method="POST" class="mb-4">
+                    <form action="{{ route('chat.grupo.tareas.crear', $chat->id) }}" method="POST" class="mb-4" id="form-crear-tarea">
                         @csrf
                         <div class="row g-3 align-items-end">
                             <div class="col-md-4">
@@ -245,7 +245,7 @@
                                                 @endif
                                             </div>
                                         </div>
-                                        <form action="{{ route('chat.grupo.tareas.completar', [$chat->id, $tarea->id]) }}" method="POST">
+                                        <form action="{{ route('chat.grupo.tareas.completar', [$chat->id, $tarea->id]) }}" method="POST" class="form-completar-tarea">
                                             @csrf
                                             <button type="submit" class="btn btn-success btn-sm">
                                                 <i class="fa fa-check"></i> Completar
@@ -904,6 +904,85 @@ document.addEventListener('DOMContentLoaded', function() {
             initializeVideoCall();
         }
     }
+});
+
+// Interceptar formularios de tareas para recargar la página después de enviar
+document.addEventListener('DOMContentLoaded', function() {
+    // Formulario de crear tarea
+    const formCrearTarea = document.getElementById('form-crear-tarea');
+    if (formCrearTarea) {
+        formCrearTarea.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const submitButton = this.querySelector('button[type="submit"]');
+            const originalText = submitButton.innerHTML;
+            
+            // Deshabilitar botón y mostrar estado de carga
+            submitButton.disabled = true;
+            submitButton.innerHTML = '<i class="fa fa-spinner fa-spin me-1"></i> Creando...';
+            
+            fetch(this.action, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => {
+                if (response.ok || response.redirected) {
+                    // Recargar la página después de crear la tarea
+                    window.location.reload();
+                } else {
+                    // Si hay error, recargar de todas formas para mostrar mensajes de error
+                    window.location.reload();
+                }
+            })
+            .catch(error => {
+                console.error('Error al crear tarea:', error);
+                // Recargar la página de todas formas
+                window.location.reload();
+            });
+        });
+    }
+    
+    // Formularios de completar tarea
+    const formsCompletarTarea = document.querySelectorAll('form.form-completar-tarea');
+    formsCompletarTarea.forEach(function(form) {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const submitButton = this.querySelector('button[type="submit"]');
+            const originalText = submitButton.innerHTML;
+            
+            // Deshabilitar botón y mostrar estado de carga
+            submitButton.disabled = true;
+            submitButton.innerHTML = '<i class="fa fa-spinner fa-spin"></i>';
+            
+            fetch(this.action, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => {
+                if (response.ok || response.redirected) {
+                    // Recargar la página después de completar la tarea
+                    window.location.reload();
+                } else {
+                    // Si hay error, recargar de todas formas
+                    window.location.reload();
+                }
+            })
+            .catch(error => {
+                console.error('Error al completar tarea:', error);
+                // Recargar la página de todas formas
+                window.location.reload();
+            });
+        });
+    });
 });
 </script>
 @endsection
