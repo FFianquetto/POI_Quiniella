@@ -220,65 +220,114 @@
 
 </div>
 
-<script src="{{ asset('js/tournament/constants.js') }}" onerror="console.error('Error al cargar constants.js')"></script>
-<script src="{{ asset('js/tournament/state.js') }}" onerror="console.error('Error al cargar state.js')"></script>
-<script src="{{ asset('js/tournament/storage.js') }}" onerror="console.error('Error al cargar storage.js')"></script>
-<script src="{{ asset('js/tournament/notifications.js') }}" onerror="console.error('Error al cargar notifications.js')"></script>
-<script src="{{ asset('js/tournament/api.js') }}" onerror="console.error('Error al cargar api.js')"></script>
-<script src="{{ asset('js/tournament/controller.js') }}" onerror="console.error('Error al cargar controller.js')"></script>
-<script src="{{ asset('js/tournament-simulator.js') }}" onerror="console.error('Error al cargar tournament-simulator.js')"></script>
+{{-- Cargar scripts con rutas absolutas y manejo de errores mejorado --}}
+@php
+    $baseUrl = rtrim(config('app.url', url('/')), '/');
+    $scripts = [
+        'constants.js',
+        'state.js',
+        'storage.js',
+        'notifications.js',
+        'api.js',
+        'controller.js'
+    ];
+@endphp
 
-{{-- Diagnóstico y verificación final --}}
+@foreach($scripts as $script)
+<script src="{{ $baseUrl }}/js/tournament/{{ $script }}" 
+        onerror="console.error('❌ Error al cargar {{ $script }}'); console.error('URL intentada: {{ $baseUrl }}/js/tournament/{{ $script }}');"></script>
+@endforeach
+<script src="{{ $baseUrl }}/js/tournament-simulator.js" 
+        onerror="console.error('❌ Error al cargar tournament-simulator.js'); console.error('URL intentada: {{ $baseUrl }}/js/tournament-simulator.js');"></script>
+
+{{-- Script de carga alternativa si los scripts principales fallan --}}
 <script>
-    window.addEventListener('load', function() {
-        setTimeout(function() {
-            console.log('=== Diagnóstico del Torneo ===');
+    (function() {
+        // Esperar a que se carguen los scripts o intentar cargarlos manualmente
+        function checkAndLoadScripts() {
+            const baseUrl = '{{ rtrim(config("app.url", url("/")), "/") }}';
+            const scriptsToLoad = [];
             
-            // Verificar botón
-            const generateBtn = document.getElementById('generateTournament');
-            if (!generateBtn) {
-                console.error('❌ El botón generateTournament NO existe en el DOM');
-            } else {
-                console.log('✅ El botón generateTournament existe');
-            }
-            
-            // Verificar namespace
+            // Verificar qué scripts no se cargaron
             if (!window.TournamentSim) {
-                console.error('❌ TournamentSim namespace NO está disponible');
-            } else {
-                console.log('✅ TournamentSim namespace está disponible');
-                console.log('   Módulos disponibles:', Object.keys(window.TournamentSim));
+                console.warn('⚠️ TournamentSim no está disponible. Intentando cargar scripts manualmente...');
                 
-                if (!window.TournamentSim.TournamentController) {
-                    console.error('❌ TournamentController NO está disponible en el namespace');
-                } else {
-                    console.log('✅ TournamentController está disponible');
-                }
+                const scripts = [
+                    { name: 'constants.js', path: baseUrl + '/js/tournament/constants.js' },
+                    { name: 'state.js', path: baseUrl + '/js/tournament/state.js' },
+                    { name: 'storage.js', path: baseUrl + '/js/tournament/storage.js' },
+                    { name: 'notifications.js', path: baseUrl + '/js/tournament/notifications.js' },
+                    { name: 'api.js', path: baseUrl + '/js/tournament/api.js' },
+                    { name: 'controller.js', path: baseUrl + '/js/tournament/controller.js' },
+                    { name: 'tournament-simulator.js', path: baseUrl + '/js/tournament-simulator.js' }
+                ];
+                
+                // Intentar cargar cada script que falte
+                scripts.forEach(function(script) {
+                    const scriptTag = document.createElement('script');
+                    scriptTag.src = script.path;
+                    scriptTag.async = false;
+                    scriptTag.onerror = function() {
+                        console.error('❌ No se pudo cargar ' + script.name + ' desde ' + script.path);
+                    };
+                    scriptTag.onload = function() {
+                        console.log('✅ ' + script.name + ' cargado manualmente');
+                    };
+                    document.head.appendChild(scriptTag);
+                });
             }
-            
-            // Intentar inicialización manual si es necesario
-            if (generateBtn && window.TournamentSim?.TournamentController) {
-                // Verificar si el botón tiene event listeners
-                const testClick = new Event('click');
-                let hasListener = false;
+        }
+        
+        // Verificar después de un tiempo si los scripts se cargaron
+        setTimeout(function() {
+            if (!window.TournamentSim) {
+                checkAndLoadScripts();
                 
-                try {
-                    // Intentar crear un nuevo controlador si es necesario
-                    const controller = new window.TournamentSim.TournamentController(document);
-                    if (controller.generateBtn === generateBtn) {
-                        console.log('✅ El controlador está correctamente vinculado al botón');
+                // Verificar nuevamente después de intentar cargar
+                setTimeout(function() {
+                    console.log('=== Diagnóstico del Torneo ===');
+                    
+                    // Verificar botón
+                    const generateBtn = document.getElementById('generateTournament');
+                    if (!generateBtn) {
+                        console.error('❌ El botón generateTournament NO existe en el DOM');
                     } else {
-                        console.warn('⚠️ El controlador no está vinculado al botón. Re-inicializando...');
-                        controller.init();
+                        console.log('✅ El botón generateTournament existe');
                     }
-                } catch (error) {
-                    console.error('❌ Error al crear/inicializar controller:', error);
-                }
+                    
+                    // Verificar namespace
+                    if (!window.TournamentSim) {
+                        console.error('❌ TournamentSim namespace NO está disponible después de intentar cargar scripts');
+                        console.error('Por favor, verifica que los archivos JavaScript existan en: {{ rtrim(config("app.url", url("/")), "/") }}/js/tournament/');
+                    } else {
+                        console.log('✅ TournamentSim namespace está disponible');
+                        console.log('   Módulos disponibles:', Object.keys(window.TournamentSim));
+                        
+                        if (!window.TournamentSim.TournamentController) {
+                            console.error('❌ TournamentController NO está disponible en el namespace');
+                        } else {
+                            console.log('✅ TournamentController está disponible');
+                            
+                            // Intentar inicializar si el botón existe
+                            if (generateBtn) {
+                                try {
+                                    const controller = new window.TournamentSim.TournamentController(document);
+                                    controller.init();
+                                    console.log('✅ Controller inicializado correctamente');
+                                } catch (error) {
+                                    console.error('❌ Error al inicializar controller:', error);
+                                }
+                            }
+                        }
+                    }
+                    
+                    console.log('=== Fin del Diagnóstico ===');
+                }, 2000);
+            } else {
+                console.log('✅ Todos los scripts se cargaron correctamente');
             }
-            
-            console.log('=== Fin del Diagnóstico ===');
-        }, 1000);
-    });
+        }, 500);
+    })();
 </script>
 @endsection
 
