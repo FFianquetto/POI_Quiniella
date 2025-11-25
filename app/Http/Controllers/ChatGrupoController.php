@@ -441,7 +441,7 @@ class ChatGrupoController extends Controller
             'estado' => ChatGrupoTarea::ESTADO_PENDIENTE,
         ]);
 
-        return redirect()->back()->with('success', 'Tarea creada exitosamente.');
+        return redirect()->route('chat.grupo.show', $id)->with('success', 'Tarea creada exitosamente.');
     }
 
     /**
@@ -464,12 +464,12 @@ class ChatGrupoController extends Controller
         $tarea = $chat->tareas()->findOrFail($tareaId);
 
         if ($tarea->estaCompletada()) {
-            return redirect()->back()->with('info', 'La tarea ya fue completada.');
+            return redirect()->route('chat.grupo.show', $chatId)->with('info', 'La tarea ya fue completada.');
         }
 
         // Permitimos completar a cualquier miembro del grupo
         $tarea->marcarComoCompletada($usuarioId);
 
-        return redirect()->back()->with('success', 'Tarea marcada como completada.');
+        return redirect()->route('chat.grupo.show', $chatId)->with('success', 'Tarea marcada como completada.');
     }
 }
