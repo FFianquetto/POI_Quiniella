@@ -609,7 +609,47 @@
 }
 </style>
 @push('scripts')
-<script src="{{ asset('js/quiniela-autocomplete.js') }}"></script>
+@php
+    $baseUrl = rtrim(config('app.url', url('/')), '/');
+@endphp
+<script src="{{ $baseUrl }}/js/quiniela-autocomplete.js" 
+        onerror="console.error('❌ Error al cargar quiniela-autocomplete.js'); console.error('URL intentada: {{ $baseUrl }}/js/quiniela-autocomplete.js');"></script>
+
+{{-- Script de carga alternativa si falla --}}
+<script>
+    (function() {
+        // Verificar si el script se cargó correctamente después de un tiempo
+        setTimeout(function() {
+            const randomFillButton = document.getElementById('randomFillButton');
+            if (randomFillButton) {
+                // Verificar si el botón tiene event listeners
+                const hasListener = randomFillButton.onclick !== null || 
+                                   randomFillButton.getAttribute('data-listener-attached') === 'true';
+                
+                if (!hasListener) {
+                    console.warn('⚠️ El botón randomFillButton no tiene event listener. Intentando cargar script manualmente...');
+                    
+                    // Intentar cargar el script manualmente
+                    const script = document.createElement('script');
+                    script.src = '{{ $baseUrl }}/js/quiniela-autocomplete.js';
+                    script.async = false;
+                    script.onerror = function() {
+                        console.error('❌ No se pudo cargar quiniela-autocomplete.js desde {{ $baseUrl }}/js/quiniela-autocomplete.js');
+                    };
+                    script.onload = function() {
+                        console.log('✅ quiniela-autocomplete.js cargado manualmente');
+                    };
+                    document.head.appendChild(script);
+                } else {
+                    console.log('✅ El botón randomFillButton tiene event listener registrado');
+                }
+            } else {
+                console.warn('⚠️ El botón randomFillButton no existe en el DOM');
+            }
+        }, 500);
+    })();
+</script>
+
 <script>
 // Recargar la página automáticamente 1 vez al cargar para asegurar que todas las variables estén disponibles
 (function() {

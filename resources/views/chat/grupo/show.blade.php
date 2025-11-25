@@ -890,7 +890,9 @@ document.addEventListener('DOMContentLoaded', function() {
     function loadVideoCallScript() {
         if (typeof VideoCall === 'undefined') {
             const script = document.createElement('script');
-            script.src = '/js/videollamada.js';
+            const baseUrl = '{{ rtrim(config("app.url", url("/")), "/") }}';
+            script.src = baseUrl + '/js/videollamada.js';
+            console.log('Cargando videollamada.js desde:', script.src);
             script.onload = function() {
                 setTimeout(initializeVideoCall, 100);
             };

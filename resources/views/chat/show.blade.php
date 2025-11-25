@@ -1244,7 +1244,9 @@ document.addEventListener('DOMContentLoaded', function() {
         if (typeof VideoCall === 'undefined') {
             console.log('Cargando script de videollamada...');
             const script = document.createElement('script');
-            script.src = '/js/videollamada.js';
+            const baseUrl = '{{ rtrim(config("app.url", url("/")), "/") }}';
+            script.src = baseUrl + '/js/videollamada.js';
+            console.log('URL del script:', script.src);
             script.onload = function() {
                 console.log('Script de videollamada cargado');
                 setTimeout(initializeVideoCall, 100);

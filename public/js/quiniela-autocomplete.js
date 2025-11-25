@@ -8,12 +8,16 @@
 
     // Esperar a que el DOM esté completamente cargado
     document.addEventListener('DOMContentLoaded', function() {
+        console.log('quiniela-autocomplete.js: DOM cargado, buscando botón...');
         const randomFillButton = document.getElementById('randomFillButton');
         
         // Si no existe el botón, no hacer nada
         if (!randomFillButton) {
+            console.warn('quiniela-autocomplete.js: El botón randomFillButton no existe en el DOM');
             return;
         }
+        
+        console.log('quiniela-autocomplete.js: Botón encontrado, registrando event listener...');
 
         // Buscar elementos del formulario
         const betsForm = document.getElementById('worldCupBetsForm');
@@ -21,6 +25,7 @@
 
         // Event listener para el botón de autocompletar
         randomFillButton.addEventListener('click', function(event) {
+            console.log('quiniela-autocomplete.js: Botón clickeado');
             event.preventDefault();
             event.stopPropagation();
             
@@ -33,17 +38,21 @@
             
             // Verificar que el formulario exista
             if (!betsForm) {
-                console.error('No se encontró el formulario de apuestas');
+                console.error('quiniela-autocomplete.js: No se encontró el formulario de apuestas (worldCupBetsForm)');
                 return;
             }
+            
+            console.log('quiniela-autocomplete.js: Formulario encontrado, buscando partidos...');
             
             // Obtener todas las filas de partidos
             const matchRows = betsForm.querySelectorAll('tbody tr[data-match-key]');
             
             if (!matchRows || matchRows.length === 0) {
-                console.warn('No hay partidos disponibles para autocompletar');
+                console.warn('quiniela-autocomplete.js: No hay partidos disponibles para autocompletar');
                 return;
             }
+            
+            console.log('quiniela-autocomplete.js: Encontrados ' + matchRows.length + ' partidos. Iniciando autocompletado...');
 
             // Iterar sobre cada partido y completar aleatoriamente
             matchRows.forEach(function(row) {
@@ -143,6 +152,8 @@
 
             // Forzar evaluación después de un delay para asegurar que todos los eventos se procesen
             setTimeout(function() {
+                console.log('quiniela-autocomplete.js: Verificando resultados del autocompletado...');
+                
                 // Verificar que los radios realmente están marcados
                 const allChecked = Array.from(matchRows).every(function(row) {
                     const radios = Array.from(row.querySelectorAll('input.winner-radio[type="radio"]'));
@@ -152,8 +163,11 @@
                     return checkedCount === 1;
                 });
                 
+                console.log('quiniela-autocomplete.js: Todos los partidos completados:', allChecked);
+                
                 // Llamar a evaluateSelections si existe en el scope global para actualizar el botón de guardar
                 if (typeof window.evaluateSelections === 'function') {
+                    console.log('quiniela-autocomplete.js: Llamando a evaluateSelections...');
                     const result = window.evaluateSelections();
                     
                     if (messageBox) {
@@ -167,15 +181,21 @@
                         messageBox.classList.remove('d-none');
                     }
                 } else {
-                    console.warn('evaluateSelections no está disponible globalmente');
+                    console.warn('quiniela-autocomplete.js: evaluateSelections no está disponible globalmente');
                     if (messageBox) {
                         messageBox.textContent = 'Se generaron selecciones aleatorias. Revisa los partidos y haz click en "Guardar Quiniela" para confirmar.';
                         messageBox.className = 'alert alert-info';
                         messageBox.classList.remove('d-none');
                     }
                 }
+                
+                console.log('quiniela-autocomplete.js: Autocompletado finalizado');
             }, 600);
         });
+        
+        // Marcar que el listener fue registrado
+        randomFillButton.setAttribute('data-listener-attached', 'true');
+        console.log('quiniela-autocomplete.js: Event listener registrado correctamente');
     });
 })();
 
