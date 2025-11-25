@@ -147,6 +147,7 @@ Route::get('/login', [AuthController::class, 'showLogin'])->name('auth.login');
 Route::post('/login', [AuthController::class, 'login'])->name('auth.login.post');
 Route::post('/logout', [AuthController::class, 'logout'])->name('auth.logout');
 Route::get('/dashboard', [AuthController::class, 'dashboard'])->name('auth.dashboard');
+Route::get('/ranking', [AuthController::class, 'ranking'])->name('auth.ranking');
 
 // Rutas de recursos
 Route::resource('registros', RegistroController::class);

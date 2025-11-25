@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Registro;
+use App\Models\UserTotalPoint;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\View\View;
@@ -207,5 +208,31 @@ class AuthController extends Controller
             'fechaUltimaQuiniela',
             'rango'
         ));
+    }
+
+    /**
+     * Mostrar ranking de los top 10 participantes
+     */
+    public function ranking(): View
+    {
+        $usuarioId = session('registro_id');
+        
+        // Obtener los top 10 participantes con mejor puntuación global
+        $top10 = UserTotalPoint::rankingGlobal(10);
+        
+        // Obtener la posición del usuario actual si está logueado
+        $posicionUsuario = null;
+        $puntosUsuario = null;
+        
+        if ($usuarioId) {
+            $userPoint = UserTotalPoint::where('registro_id', $usuarioId)->first();
+            if ($userPoint) {
+                $puntosUsuario = $userPoint->puntos_totales;
+                // Calcular la posición del usuario en el ranking global
+                $posicionUsuario = UserTotalPoint::where('puntos_totales', '>', $puntosUsuario)->count() + 1;
+            }
+        }
+        
+        return view('auth.ranking', compact('top10', 'posicionUsuario', 'puntosUsuario', 'usuarioId'));
     }
 }

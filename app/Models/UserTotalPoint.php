@@ -93,7 +93,10 @@ class UserTotalPoint extends Model
         }
 
         return static::with('usuario')
+            ->whereHas('usuario') // Solo incluir usuarios que existen
+            ->where('puntos_totales', '>', 0) // Solo usuarios con puntos
             ->orderByDesc('puntos_totales')
+            ->orderBy('ultima_actualizacion', 'desc') // En caso de empate, el más reciente primero
             ->limit($limit)
             ->get();
     }

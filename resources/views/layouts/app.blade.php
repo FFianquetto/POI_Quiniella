@@ -87,6 +87,11 @@
                                 <i class="fas fa-sitemap me-1"></i> Torneo
                             </a>
                         </li>
+                        <li class="nav-item">
+                            <a class="nav-link {{ request()->routeIs('auth.ranking') ? 'nav-link-active' : '' }}" href="{{ route('auth.ranking') }}">
+                                <i class="fas fa-medal me-1"></i> Ranking
+                            </a>
+                        </li>
                     @endif
                 </ul>
 
