@@ -1,5 +1,5 @@
 /**
- * Funcionalidad de autocompletar aleatorio para quinielas
+ * Funciidad de autocompletar aleatorio para quinielas
  * Este script solo selecciona opciones visualmente, NO guarda nada.
  * El usuario debe hacer click en "Guardar Quiniela" para confirmar.
  */
