@@ -47,17 +47,29 @@
 
         init() {
             if (!this.generateBtn) {
-                return;
+                console.error('TournamentController.init: El botón generateTournament no se encontró en el DOM.');
+                console.error('Intentando buscar el botón nuevamente...');
+                this.generateBtn = this.doc.getElementById('generateTournament');
+                if (!this.generateBtn) {
+                    console.error('TournamentController.init: El botón aún no está disponible. Verifica que el HTML se haya cargado correctamente.');
+                    return;
+                }
             }
 
-            this.setupDatasets();
-            this.setupServices();
-            this.bindEventListeners();
-            this.applyInitialStyles();
-            this.syncFavoriteOptions();
-            this.updateChampionDisplay();
-            this.hydrateInitialTournament();
-            this.exposeGlobalActions();
+            try {
+                this.setupDatasets();
+                this.setupServices();
+                this.bindEventListeners();
+                this.applyInitialStyles();
+                this.syncFavoriteOptions();
+                this.updateChampionDisplay();
+                this.hydrateInitialTournament();
+                this.exposeGlobalActions();
+            } catch (error) {
+                console.error('Error en TournamentController.init:', error);
+                console.error('Stack trace:', error.stack);
+                throw error;
+            }
         }
 
         setupDatasets() {
@@ -90,7 +102,22 @@
         }
 
         bindEventListeners() {
-            this.generateBtn.addEventListener('click', () => this.generateTournament());
+            if (!this.generateBtn) {
+                console.error('bindEventListeners: generateBtn no está disponible');
+                return;
+            }
+            
+            try {
+                this.generateBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('Botón Generar Mundial clickeado');
+                    this.generateTournament();
+                });
+                console.log('Event listener del botón Generar Mundial registrado correctamente');
+            } catch (error) {
+                console.error('Error al registrar event listener del botón:', error);
+            }
             if (this.clearBtn) {
                 this.clearBtn.addEventListener('click', () => this.clearAllTeams());
             }
@@ -408,56 +435,80 @@
         }
 
         generateTournament() {
-            const tournamentData = stateModule.getTournamentData();
+            console.log('generateTournament() llamado');
+            
+            try {
+                const tournamentData = stateModule.getTournamentData();
+                console.log('Estado del torneo:', tournamentData);
 
-            if (tournamentData.status === 'in_progress') {
-                this.lockGenerateButton('Ya tienes un Mundial en curso. Finaliza la simulación antes de iniciar otro.');
-                showNotification('Ya existe un torneo activo. Continúa los partidos pendientes o finalízalo.', 'warning');
+                if (tournamentData.status === 'in_progress') {
+                    console.warn('Ya hay un torneo en progreso');
+                    this.lockGenerateButton('Ya tienes un Mundial en curso. Finaliza la simulación antes de iniciar otro.');
+                    showNotification('Ya existe un torneo activo. Continúa los partidos pendientes o finalízalo.', 'warning');
+                    this.switchToBracketView();
+                    return;
+                }
+
+                console.log('Equipos disponibles:', this.worldCupTeamsDataset.length);
+                if (!this.worldCupTeamsDataset.length) {
+                    console.warn('No hay equipos en el dataset');
+                    showNotification('No hay selecciones registradas para generar el torneo.', 'danger');
+                    return;
+                }
+
+                if (this.worldCupTeamsDataset.length !== 32) {
+                    console.warn(`Solo hay ${this.worldCupTeamsDataset.length} equipos, se requieren 32`);
+                    showNotification('Se requieren las 32 selecciones mundialistas para iniciar la simulación.', 'warning');
+                    return;
+                }
+
+                console.log('Iniciando generación del torneo...');
+
+                const teams = this.worldCupTeamsDataset.map((team) => ({ ...team }));
+
+                const baseState = stateModule.createInitialTournamentState({
+                    status: 'in_progress'
+                });
+
+                stateModule.setTournamentData(baseState);
+                const currentState = stateModule.getTournamentData();
+
+                console.log('Generando bracket...');
+                this.generateBracket(teams, { shuffle: true });
+                currentState.favoriteTeamCode = null;
+                currentState.favoriteTeamName = null;
+                currentState.status = 'in_progress';
+
+                this.lockGenerateButton('Torneo en curso. Completa todos los partidos para generar uno nuevo.');
+                this.showTournamentInfo('En Marcha');
+                this.updateChampionDisplay();
+                this.resetRewardsPanel();
                 this.switchToBracketView();
-                return;
+                
+                // Ocultar el panel de selección y asegurar que el bracket permanezca visible
+                if (this.teamSelectionPanel) {
+                    this.teamSelectionPanel.style.display = 'none';
+                }
+                
+                // Ocultar botón "Volver a Selección" durante el torneo activo
+                if (this.backToSelectionBtn) {
+                    this.backToSelectionBtn.style.display = 'none';
+                }
+                
+                console.log('Sincronizando estado del torneo con el servidor...');
+                if (this.syncService) {
+                    this.syncService.syncTournamentState({ initial: true });
+                } else {
+                    console.warn('syncService no está disponible');
+                }
+                
+                showNotification('¡La Copa Mundial 2026 está configurada! Comenzamos en dieciseisavos de final.', 'success');
+                console.log('✅ Torneo generado exitosamente');
+            } catch (error) {
+                console.error('❌ Error al generar el torneo:', error);
+                console.error('Stack trace:', error.stack);
+                showNotification('Error al generar el torneo. Por favor, recarga la página e intenta nuevamente.', 'danger');
             }
-
-            if (!this.worldCupTeamsDataset.length) {
-                showNotification('No hay selecciones registradas para generar el torneo.', 'danger');
-                return;
-            }
-
-            if (this.worldCupTeamsDataset.length !== 32) {
-                showNotification('Se requieren las 32 selecciones mundialistas para iniciar la simulación.', 'warning');
-                return;
-            }
-
-            const teams = this.worldCupTeamsDataset.map((team) => ({ ...team }));
-
-            const baseState = stateModule.createInitialTournamentState({
-                status: 'in_progress'
-            });
-
-            stateModule.setTournamentData(baseState);
-            const currentState = stateModule.getTournamentData();
-
-            this.generateBracket(teams, { shuffle: true });
-            currentState.favoriteTeamCode = null;
-            currentState.favoriteTeamName = null;
-            currentState.status = 'in_progress';
-
-            this.lockGenerateButton('Torneo en curso. Completa todos los partidos para generar uno nuevo.');
-            this.showTournamentInfo('En Marcha');
-            this.updateChampionDisplay();
-            this.resetRewardsPanel();
-            this.switchToBracketView();
-            
-            // Ocultar el panel de selección y asegurar que el bracket permanezca visible
-            if (this.teamSelectionPanel) {
-                this.teamSelectionPanel.style.display = 'none';
-            }
-            
-            // Ocultar botón "Volver a Selección" durante el torneo activo
-            if (this.backToSelectionBtn) {
-                this.backToSelectionBtn.style.display = 'none';
-            }
-            
-            this.syncService.syncTournamentState({ initial: true });
 
             showNotification('¡La Copa Mundial 2026 está configurada! Comenzamos en dieciseisavos de final.', 'success');
         }

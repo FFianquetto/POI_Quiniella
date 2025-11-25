@@ -220,13 +220,66 @@
 
 </div>
 
-<script src="{{ asset('js/tournament/constants.js') }}"></script>
-<script src="{{ asset('js/tournament/state.js') }}"></script>
-<script src="{{ asset('js/tournament/storage.js') }}"></script>
-<script src="{{ asset('js/tournament/notifications.js') }}"></script>
-<script src="{{ asset('js/tournament/api.js') }}"></script>
-<script src="{{ asset('js/tournament/controller.js') }}"></script>
-<script src="{{ asset('js/tournament-simulator.js') }}"></script>
+<script src="{{ asset('js/tournament/constants.js') }}" onerror="console.error('Error al cargar constants.js')"></script>
+<script src="{{ asset('js/tournament/state.js') }}" onerror="console.error('Error al cargar state.js')"></script>
+<script src="{{ asset('js/tournament/storage.js') }}" onerror="console.error('Error al cargar storage.js')"></script>
+<script src="{{ asset('js/tournament/notifications.js') }}" onerror="console.error('Error al cargar notifications.js')"></script>
+<script src="{{ asset('js/tournament/api.js') }}" onerror="console.error('Error al cargar api.js')"></script>
+<script src="{{ asset('js/tournament/controller.js') }}" onerror="console.error('Error al cargar controller.js')"></script>
+<script src="{{ asset('js/tournament-simulator.js') }}" onerror="console.error('Error al cargar tournament-simulator.js')"></script>
+
+{{-- Diagnóstico y verificación final --}}
+<script>
+    window.addEventListener('load', function() {
+        setTimeout(function() {
+            console.log('=== Diagnóstico del Torneo ===');
+            
+            // Verificar botón
+            const generateBtn = document.getElementById('generateTournament');
+            if (!generateBtn) {
+                console.error('❌ El botón generateTournament NO existe en el DOM');
+            } else {
+                console.log('✅ El botón generateTournament existe');
+            }
+            
+            // Verificar namespace
+            if (!window.TournamentSim) {
+                console.error('❌ TournamentSim namespace NO está disponible');
+            } else {
+                console.log('✅ TournamentSim namespace está disponible');
+                console.log('   Módulos disponibles:', Object.keys(window.TournamentSim));
+                
+                if (!window.TournamentSim.TournamentController) {
+                    console.error('❌ TournamentController NO está disponible en el namespace');
+                } else {
+                    console.log('✅ TournamentController está disponible');
+                }
+            }
+            
+            // Intentar inicialización manual si es necesario
+            if (generateBtn && window.TournamentSim?.TournamentController) {
+                // Verificar si el botón tiene event listeners
+                const testClick = new Event('click');
+                let hasListener = false;
+                
+                try {
+                    // Intentar crear un nuevo controlador si es necesario
+                    const controller = new window.TournamentSim.TournamentController(document);
+                    if (controller.generateBtn === generateBtn) {
+                        console.log('✅ El controlador está correctamente vinculado al botón');
+                    } else {
+                        console.warn('⚠️ El controlador no está vinculado al botón. Re-inicializando...');
+                        controller.init();
+                    }
+                } catch (error) {
+                    console.error('❌ Error al crear/inicializar controller:', error);
+                }
+            }
+            
+            console.log('=== Fin del Diagnóstico ===');
+        }, 1000);
+    });
+</script>
 @endsection
 
 
