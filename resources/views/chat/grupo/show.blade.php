@@ -195,6 +195,12 @@
                         </div>
                     @endif
 
+                    @if (session('error'))
+                        <div class="alert alert-danger">
+                            {{ session('error') }}
+                        </div>
+                    @endif
+
                     <form action="{{ route('chat.grupo.tareas.crear', $chat->id) }}" method="POST" class="mb-4" id="form-crear-tarea">
                         @csrf
                         <div class="row g-3 align-items-end">
@@ -203,9 +209,9 @@
                                 <input type="text" name="titulo" class="form-control" placeholder="Nueva tarea" required value="{{ old('titulo') }}">
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label">Asignar a</label>
-                                <select name="asignado_a" class="form-select">
-                                    <option value="">Sin asignar</option>
+                                <label class="form-label">Asignar a <span class="text-danger">*</span></label>
+                                <select name="asignado_a" class="form-select" required>
+                                    <option value="">-- Selecciona un usuario --</option>
                                     @foreach($chat->usuarios as $miembro)
                                         <option value="{{ $miembro->id }}" @selected(old('asignado_a') == $miembro->id)>{{ $miembro->nombre }}</option>
                                     @endforeach
@@ -245,12 +251,16 @@
                                                 @endif
                                             </div>
                                         </div>
-                                        <form action="{{ route('chat.grupo.tareas.completar', [$chat->id, $tarea->id]) }}" method="POST" class="form-completar-tarea">
-                                            @csrf
-                                            <button type="submit" class="btn btn-success btn-sm">
-                                                <i class="fa fa-check"></i> Completar
-                                            </button>
-                                        </form>
+                                        @if($tarea->asignado_a == session('registro_id'))
+                                            <form action="{{ route('chat.grupo.tareas.completar', [$chat->id, $tarea->id]) }}" method="POST" class="form-completar-tarea">
+                                                @csrf
+                                                <button type="submit" class="btn btn-success btn-sm">
+                                                    <i class="fa fa-check"></i> Completar
+                                                </button>
+                                            </form>
+                                        @else
+                                            <span class="text-muted small">Asignada a otro usuario</span>
+                                        @endif
                                     </div>
                                 </div>
                             @empty
@@ -926,11 +936,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 method: 'POST',
                 body: formData,
                 headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json',
+                },
+                credentials: 'same-origin'
             })
             .then(response => {
-                if (response.ok || response.redirected) {
+                // Siempre recargar la página para mostrar la tarea creada
+                if (response.redirected) {
+                    window.location.href = response.url;
+                } else if (response.ok) {
                     // Recargar la página después de crear la tarea
                     window.location.reload();
                 } else {

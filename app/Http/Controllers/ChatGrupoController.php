@@ -110,12 +110,16 @@ class ChatGrupoController extends Controller
             ->where('leido', false)
             ->update(['leido' => true]);
 
+        // Filtrar tareas pendientes: solo las asignadas al usuario actual
         $tareasPendientes = $chat->tareas
             ->where('estado', ChatGrupoTarea::ESTADO_PENDIENTE)
+            ->where('asignado_a', $usuarioId)
             ->sortBy('created_at');
 
+        // Filtrar tareas completadas: solo las completadas por el usuario actual
         $tareasCompletadas = $chat->tareas
             ->where('estado', ChatGrupoTarea::ESTADO_COMPLETADA)
+            ->where('completado_por', $usuarioId)
             ->sortByDesc('completado_at');
 
         return view('chat.grupo.show', compact('chat', 'tareasPendientes', 'tareasCompletadas'));
@@ -413,11 +417,12 @@ class ChatGrupoController extends Controller
         $validator = Validator::make($request->all(), [
             'titulo' => 'required|string|max:255',
             'descripcion' => 'nullable|string|max:2000',
-            'asignado_a' => 'nullable|exists:registros,id',
+            'asignado_a' => 'required|exists:registros,id',
         ], [
             'titulo.required' => 'El título de la tarea es obligatorio.',
             'titulo.max' => 'El título no puede exceder 255 caracteres.',
             'descripcion.max' => 'La descripción no puede exceder 2000 caracteres.',
+            'asignado_a.required' => 'Debes asignar la tarea a un usuario.',
             'asignado_a.exists' => 'El usuario seleccionado no es válido.',
         ]);
 
@@ -427,7 +432,8 @@ class ChatGrupoController extends Controller
                 ->withInput();
         }
 
-        if ($request->filled('asignado_a') && !$chat->usuarios->contains('id', $request->asignado_a)) {
+        // Verificar que el usuario asignado sea miembro del grupo
+        if (!$chat->usuarios->contains('id', $request->asignado_a)) {
             return redirect()->route('chat.grupo.show', $id)
                 ->withErrors(['asignado_a' => 'El usuario asignado debe ser miembro del grupo.'])
                 ->withInput();
@@ -468,7 +474,13 @@ class ChatGrupoController extends Controller
             return redirect()->route('chat.grupo.show', $chatId)->with('info', 'La tarea ya fue completada.');
         }
 
-        // Permitimos completar a cualquier miembro del grupo
+        // Solo el usuario asignado puede completar la tarea
+        if ($tarea->asignado_a !== $usuarioId) {
+            return redirect()->route('chat.grupo.show', $chatId)
+                ->with('error', 'Solo el usuario asignado puede completar esta tarea.');
+        }
+
+        // Marcar como completada
         $tarea->marcarComoCompletada($usuarioId);
 
         // Redirigir a la misma página del chat para recargar
