@@ -195,13 +195,7 @@
                         </div>
                     @endif
 
-                    @if (session('error'))
-                        <div class="alert alert-danger">
-                            {{ session('error') }}
-                        </div>
-                    @endif
-
-                    <form action="{{ route('chat.grupo.tareas.crear', $chat->id) }}" method="POST" class="mb-4" id="form-crear-tarea">
+                    <form action="{{ route('chat.grupo.tareas.crear', $chat->id) }}" method="POST" class="mb-4">
                         @csrf
                         <div class="row g-3 align-items-end">
                             <div class="col-md-4">
@@ -209,9 +203,9 @@
                                 <input type="text" name="titulo" class="form-control" placeholder="Nueva tarea" required value="{{ old('titulo') }}">
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label">Asignar a <span class="text-danger">*</span></label>
-                                <select name="asignado_a" class="form-select" required>
-                                    <option value="">-- Selecciona un usuario --</option>
+                                <label class="form-label">Asignar a</label>
+                                <select name="asignado_a" class="form-select">
+                                    <option value="">Sin asignar</option>
                                     @foreach($chat->usuarios as $miembro)
                                         <option value="{{ $miembro->id }}" @selected(old('asignado_a') == $miembro->id)>{{ $miembro->nombre }}</option>
                                     @endforeach
@@ -251,16 +245,12 @@
                                                 @endif
                                             </div>
                                         </div>
-                                        @if($tarea->asignado_a == session('registro_id'))
-                                            <form action="{{ route('chat.grupo.tareas.completar', [$chat->id, $tarea->id]) }}" method="POST" class="form-completar-tarea">
-                                                @csrf
-                                                <button type="submit" class="btn btn-success btn-sm">
-                                                    <i class="fa fa-check"></i> Completar
-                                                </button>
-                                            </form>
-                                        @else
-                                            <span class="text-muted small">Asignada a otro usuario</span>
-                                        @endif
+                                        <form action="{{ route('chat.grupo.tareas.completar', [$chat->id, $tarea->id]) }}" method="POST">
+                                            @csrf
+                                            <button type="submit" class="btn btn-success btn-sm">
+                                                <i class="fa fa-check"></i> Completar
+                                            </button>
+                                        </form>
                                     </div>
                                 </div>
                             @empty
@@ -914,90 +904,6 @@ document.addEventListener('DOMContentLoaded', function() {
             initializeVideoCall();
         }
     }
-});
-
-// Interceptar formularios de tareas para recargar la página después de enviar
-document.addEventListener('DOMContentLoaded', function() {
-    // Formulario de crear tarea
-    const formCrearTarea = document.getElementById('form-crear-tarea');
-    if (formCrearTarea) {
-        formCrearTarea.addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            const formData = new FormData(this);
-            const submitButton = this.querySelector('button[type="submit"]');
-            const originalText = submitButton.innerHTML;
-            
-            // Deshabilitar botón y mostrar estado de carga
-            submitButton.disabled = true;
-            submitButton.innerHTML = '<i class="fa fa-spinner fa-spin me-1"></i> Creando...';
-            
-            fetch(this.action, {
-                method: 'POST',
-                body: formData,
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'Accept': 'application/json',
-                },
-                credentials: 'same-origin'
-            })
-            .then(response => {
-                // Siempre recargar la página para mostrar la tarea creada
-                if (response.redirected) {
-                    window.location.href = response.url;
-                } else if (response.ok) {
-                    // Recargar la página después de crear la tarea
-                    window.location.reload();
-                } else {
-                    // Si hay error, recargar de todas formas para mostrar mensajes de error
-                    window.location.reload();
-                }
-            })
-            .catch(error => {
-                console.error('Error al crear tarea:', error);
-                // Recargar la página de todas formas
-                window.location.reload();
-            });
-        });
-    }
-    
-    // Formularios de completar tarea
-    const formsCompletarTarea = document.querySelectorAll('form.form-completar-tarea');
-    formsCompletarTarea.forEach(function(form) {
-        form.addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            const formData = new FormData(this);
-            const submitButton = this.querySelector('button[type="submit"]');
-            const originalText = submitButton.innerHTML;
-            
-            // Deshabilitar botón y mostrar estado de carga
-            submitButton.disabled = true;
-            submitButton.innerHTML = '<i class="fa fa-spinner fa-spin"></i>';
-            
-            fetch(this.action, {
-                method: 'POST',
-                body: formData,
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            })
-            .then(response => {
-                if (response.ok || response.redirected) {
-                    // Recargar la página después de completar la tarea
-                    window.location.reload();
-                } else {
-                    // Si hay error, recargar de todas formas
-                    window.location.reload();
-                }
-            })
-            .catch(error => {
-                console.error('Error al completar tarea:', error);
-                // Recargar la página de todas formas
-                window.location.reload();
-            });
-        });
-    });
 });
 </script>
 @endsection
